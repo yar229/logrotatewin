@@ -148,6 +148,7 @@ namespace logrotate.Tests.Integration
 
                 // Assert - Lenient parsing: invalid directives don't fail the entire operation
                 exitCode.Should().Be(0, "invalid directives are logged but don't stop rotation (lenient parsing)");
+                Log.Should().MatchRegex("warning:.*? unknown option 'invalidDirectiveThatDoesNotExist'", "there must be warning in execution log");
 
                 // Rotation should still happen despite invalid directive
                 File.Exists($"{logFile}.1").Should().BeTrue("rotation should proceed despite invalid directive");
@@ -339,6 +340,8 @@ namespace logrotate.Tests.Integration
                 // Act
                 int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
 
+                Log.Should().MatchRegex("error:.*? bad rotation count", "there must be error in execution log");
+
                 exitCode.Should().NotBe(0);
                 // Assert - This may or may not be supported, documenting actual behavior
                 // The test will reveal whether inline directives are supported
@@ -443,7 +446,8 @@ daily
             File.WriteAllText(logFile, "Test log content\n");
 
             string stateFile = Path.Combine(TestDir, "state.txt");
-            string configContent = $@"""{logFile}"" {{
+            string configContent = $@"
+""{logFile}"" {{
     rotate 3
     compress
 # Missing closing brace
@@ -458,7 +462,7 @@ daily
                 // Assert - Implementation may handle missing brace gracefully
                 // This test documents the actual behavior when config section isn't properly closed
                 // Some implementations treat EOF as implicit closing brace
-                exitCode.Should().Match(x => x == 0 || x == 3 || x == 4, "missing closing brace may be handled gracefully or cause error");
+                exitCode.Should().Be(0, "missing closing brace should be handled gracefully");
             }
             finally
             {
