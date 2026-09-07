@@ -586,5 +586,178 @@ daily
                 TestHelpers.CleanupPath(configFile);
             }
         }
+
+        [Fact]
+        public void ParseConfig_WithUnquotedPath_ShouldRotate()
+        {
+            // Log file names/globs before '{' may now be written without double quotes.
+
+            // Arrange
+            string logFile = Path.Combine(TestDir, "test.log");
+            File.WriteAllText(logFile, "Test log content\n");
+
+            string stateFile = Path.Combine(TestDir, "state.txt");
+            string configContent = $@"
+{logFile} {{
+    rotate 2
+}}
+";
+            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+
+            try
+            {
+                // Act - Force flag will trigger rotation
+                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+
+                // Assert
+                exitCode.Should().Be(0, "unquoted path should parse and rotate successfully");
+                File.Exists($"{logFile}.1").Should().BeTrue("unquoted path should be rotated");
+                File.Exists($"{logFile}.1.gz").Should().BeFalse("no compress directive was given");
+            }
+            finally
+            {
+                TestHelpers.CleanupPath(configFile);
+            }
+        }
+
+        [Fact]
+        public void ParseConfig_WithUnquotedWildcard_ShouldRotateMatchingFiles()
+        {
+            // Log file masks (globs) before '{' may now be written without double quotes.
+
+            // Arrange
+            string log1 = Path.Combine(TestDir, "app1.log");
+            string log2 = Path.Combine(TestDir, "app2.log");
+            File.WriteAllText(log1, "App 1 log\n");
+            File.WriteAllText(log2, "App 2 log\n");
+
+            string wildcardPattern = Path.Combine(TestDir, "*.log");
+            string stateFile = Path.Combine(TestDir, "state.txt");
+            string configContent = $@"
+{wildcardPattern} {{
+    rotate 2
+}}
+";
+            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+
+            try
+            {
+                // Act
+                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+
+                // Assert
+                exitCode.Should().Be(0, "unquoted wildcard should parse and rotate successfully");
+                File.Exists($"{log1}.1").Should().BeTrue("app1.log matched by unquoted wildcard should be rotated");
+                File.Exists($"{log2}.1").Should().BeTrue("app2.log matched by unquoted wildcard should be rotated");
+            }
+            finally
+            {
+                TestHelpers.CleanupPath(configFile);
+            }
+        }
+
+        [Fact]
+        public void ParseConfig_WithUnquotedAndQuotedWildcard_ShouldRotateMatchingFiles()
+        {
+            // Log file masks (globs) before '{' may now be written without double quotes.
+
+            // Arrange
+            string log1 = Path.Combine(TestDir, "app1.log");
+            string log2 = Path.Combine(TestDir, "app2.log");
+            File.WriteAllText(log1, "App 1 log\n");
+            File.WriteAllText(log2, "App 2 log\n");
+
+            string wildcardPattern = Path.Combine(TestDir, "*.log");
+            string stateFile = Path.Combine(TestDir, "state.txt");
+            string configContent = $@"
+{log1} ""{log2}"" {{
+    rotate 2
+}}
+";
+            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+
+            try
+            {
+                // Act
+                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+
+                // Assert
+                exitCode.Should().Be(0, "unquoted wildcard should parse and rotate successfully");
+                File.Exists($"{log1}.1").Should().BeTrue("app1.log matched by unquoted wildcard should be rotated");
+                File.Exists($"{log2}.1").Should().BeTrue("app2.log matched by unquoted wildcard should be rotated");
+            }
+            finally
+            {
+                TestHelpers.CleanupPath(configFile);
+            }
+        }
+
+        [Fact]
+        public void ParseConfig_WithUnquotedAndQuotedWithSpacesWildcard_ShouldRotateMatchingFiles()
+        {
+            // Arrange
+            string log1 = Path.Combine(TestDir, "app1.log");
+            string log2 = Path.Combine(TestDir, "app2 B.log");
+            File.WriteAllText(log1, "App 1 log\n");
+            File.WriteAllText(log2, "App 2 log\n");
+
+            string wildcardPattern = Path.Combine(TestDir, "*.log");
+            string stateFile = Path.Combine(TestDir, "state.txt");
+            string configContent = $@"
+{log1} ""{log2}"" {{
+    rotate 2
+}}
+";
+            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+
+            try
+            {
+                // Act
+                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+
+                // Assert
+                exitCode.Should().Be(0, "unquoted wildcard should parse and rotate successfully");
+                File.Exists($"{log1}.1").Should().BeTrue("app1.log matched by unquoted wildcard should be rotated");
+                File.Exists($"{log2}.1").Should().BeTrue("app2.log matched by unquoted wildcard should be rotated");
+            }
+            finally
+            {
+                TestHelpers.CleanupPath(configFile);
+            }
+        }
+
+        [Fact]
+        public void ParseConfig_WithUnquotedWithSpacesAndQuotedWildcard_ShouldFail()
+        {
+            // Arrange
+            string log1 = Path.Combine(TestDir, "app1 A.log");
+            string log2 = Path.Combine(TestDir, "app2 B.log");
+            File.WriteAllText(log1, "App 1 log\n");
+            File.WriteAllText(log2, "App 2 log\n");
+
+            string wildcardPattern = Path.Combine(TestDir, "*.log");
+            string stateFile = Path.Combine(TestDir, "state.txt");
+            string configContent = $@"
+{log1} ""{log2}"" {{
+    rotate 2
+}}
+";
+            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+
+            try
+            {
+                // Act
+                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+
+                // Assert
+                exitCode.Should().NotBe(0, "unquoted wildcard should parse and rotate successfully");
+                File.Exists($"{log1}.1").Should().BeFalse("app1.log matched by unquoted wildcard should be rotated");
+                File.Exists($"{log2}.1").Should().BeTrue("app2.log matched by unquoted wildcard should be rotated");
+            }
+            finally
+            {
+                TestHelpers.CleanupPath(configFile);
+            }
+        }
     }
 }

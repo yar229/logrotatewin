@@ -1,13 +1,7 @@
 # [LogRotateWin](https://github.com/yar229/logrotatewin)
 
 Порт утилиты [logrotate](https://launchpad.net/ubuntu/+source/logrotate) v.3.22.0 из Ubuntu на платформу .NET 10 под Windows.
-
-!!! На текущий момент в конфиге файлы/маски секции должны быть указаны в двойных кавычках
-```
-"c:\folder\file.ext" "c:\folder1\*.ext" {
-  ...
-}
-```
+[Ubuntu manpages: logrotate](https://manpages.ubuntu.com/manpages/stonking/man8/logrotate.8.html)
 
 ## Об утилите
 

@@ -706,6 +706,128 @@ to.CreateMode = from.CreateMode;
             return null;
         }
 
+        /// <summary>
+        /// Parses a log file definition header (one or more names/globs followed by '{')
+        /// and creates a new LogInfo for it. The caller must ensure newlog == defConfig.
+        /// Returns 0 on success, 1 on fatal error (caller should goto error).
+        /// </summary>
+        private int LogFileSectionStart(string configFile, int lineNum, string buf,
+                                        LogInfo defConfig, ref int pos, int length,
+                                        ref int logerror, ref int inConfig, ref LogInfo newlog)
+        {
+            // If no compression options set, use defaults
+            if (newlog.CompressProg == null)
+                newlog.CompressProg = Options.DefaultCompressCommand;
+            if (newlog.UncompressProg == null)
+                newlog.UncompressProg = Options.DefaultUncompressCommand;
+            if (newlog.CompressExt == null)
+                newlog.CompressExt = Options.DefaultCompressExt;
+
+            newlog = NewLogInfo(defConfig);
+
+            string? globString = ParseGlobString(configFile, lineNum, buf, ref pos, length);
+            if (globString != null)
+                inConfig = 1;
+            else
+                return 1;
+
+            var fileArgs = ArgvParser.Parse(globString);
+            if (fileArgs == null)
+            {
+                Log.Message(MESS.ERROR, "{0}:{1} error parsing filename\n",
+                    configFile, lineNum);
+                return 1;
+            }
+            if (fileArgs.Count < 1)
+            {
+                Log.Message(MESS.ERROR,
+                    "{0}:{1} {{ expected after log file name(s)\n",
+                    configFile, lineNum);
+                return 1;
+            }
+
+            newlog.Files.Clear();
+            foreach (var arg in fileArgs)
+            {
+                if (_globerrMsg != null)
+                    _globerrMsg = null;
+
+                if (arg.Length > 2048)
+                {
+                    Log.Message(MESS.ERROR, "{0}:{1} glob too long ({2} > 2048)\n",
+                        configFile, lineNum, arg.Length);
+                    logerror = 1;
+                    continue;
+                }
+
+                var (rc, matches) = Glob.GlobNoCheck(arg);
+                if (rc == GlobResultCode.GLOB_ABORTED)
+                {
+                    if ((newlog.Flags & LogFlags.MissingOk) != 0)
+                        continue;
+                    _globerrMsg = string.Format("{0}:{1} glob failed for {2}: {3}\n",
+                        configFile, lineNum, arg, "Error accessing path");
+                    Log.Message(MESS.DEBUG, "{0}", _globerrMsg);
+                    matches = new List<string>();
+                }
+
+                if (matches.Count == 0)
+                {
+                    Log.Message(MESS.DEBUG,
+                        "{0}:{1} no matches for glob '{2}', skipping\n",
+                        configFile, lineNum, arg);
+                    continue;
+                }
+
+                foreach (var match in matches)
+                {
+                    // skip directories
+                    var st = FileStat.Lstat(match);
+                    if (st != null && FileStat.IsDirectory(st))
+                        continue;
+
+                    bool addFile = true;
+                    foreach (var log in Logs)
+                    {
+                        foreach (var existing in log.Files)
+                        {
+                            if (existing == match)
+                            {
+                                if ((log.Flags & LogFlags.IgnoreDuplicates) != 0)
+                                {
+                                    addFile = false;
+                                    Log.Message(MESS.DEBUG,
+                                        "{0}:{1} ignore duplicate log entry for {2}\n",
+                                        configFile, lineNum, match);
+                                }
+                                else
+                                {
+                                    Log.Message(MESS.ERROR,
+                                        "{0}:{1} duplicate log entry for {2}\n",
+                                        configFile, lineNum, match);
+                                    logerror = 1;
+                                    goto duperror;
+                                }
+                                break;
+                            }
+                        }
+                        if (!addFile)
+                            break;
+                    }
+
+                    if (addFile)
+                    {
+                        newlog.Files.Add(match);
+                    }
+                }
+            duperror:
+                ;
+            }
+
+            newlog.Pattern = globString;
+            return 0;
+        }
+
         // =================================================================
         // readConfigFile - the state machine
         // =================================================================
@@ -796,15 +918,24 @@ to.CreateMode = from.CreateMode;
                             }
                             if (pos < length && !C.IsSpace(buf[pos]) && buf[pos] != '=')
                             {
+                                if (newlog == defConfig)
+                                {
+                                    /* Not a property of a bare option keyword: the token is
+                                       glued to a non-blank char (".", "\", "/", "*", ...).
+                                       Treat it as the start of an unquoted log file
+                                       name/glob, e.g. "app.log", "logs\app*.log" { */
+                                    pos = pos - key.Length;
+                                    if (LogFileSectionStart(configFile, lineNum, buf, defConfig, ref pos, length,
+                                            ref logerror, ref inConfig, ref newlog) != 0)
+                                        goto error;
+                                    break;
+                                }
+
                                 Log.Message(MESS.ERROR,
                                     "{0}:{1} keyword '{2}' not properly separated, found {3:#x}\n",
                                     configFile, lineNum, key, (int)buf[pos]);
-                                if (newlog != defConfig)
-                                {
-                                    state = STATE_ERROR;
-                                    goto next_state;
-                                }
-                                goto error;
+                                state = STATE_ERROR;
+                                goto next_state;
                             }
 
                             if (key == Op.Compress) newlog.Flags |= LogFlags.Compress;
@@ -1567,132 +1698,23 @@ string? olddirOwnerSid = null;
                             }
                             else
                             {
+                                if (newlog == defConfig)
+                                {
+                                    /* Unknown alphabetic token at the top level is an
+                                       unquoted log file name/glob, e.g. "custom.log {"
+                                       or "logs\*.log {" */
+                                    pos = pos - key.Length;
+                                    if (LogFileSectionStart(configFile, lineNum, buf, defConfig, ref pos, length,
+                                            ref logerror, ref inConfig, ref newlog) != 0)
+                                        goto error;
+                                    break;
+                                }
+
                                 Log.Message(MESS.WARN, "{0}:{1} unknown option '{2}' -- ignoring line\n",
                                     configFile, lineNum, key);
                                 if (pos < length && buf[pos] != '\n')
                                     state = STATE_SKIP_LINE;
                             }
-                        }
-                        else if (ch == '/' || ch == '"' || ch == '\'' || ch == '~' || ch == '\\')
-                        {
-                            if (newlog != defConfig)
-                            {
-                                Log.Message(MESS.ERROR, "{0}:{1} unexpected log filename\n",
-                                    configFile, lineNum);
-                                state = STATE_ERROR;
-                                continue;
-                            }
-
-                            // If no compression options set, use defaults
-                            if (newlog.CompressProg == null)
-                                newlog.CompressProg = Options.DefaultCompressCommand;
-                            if (newlog.UncompressProg == null)
-                                newlog.UncompressProg = Options.DefaultUncompressCommand;
-                            if (newlog.CompressExt == null)
-                                newlog.CompressExt = Options.DefaultCompressExt;
-
-                            newlog = NewLogInfo(defConfig);
-
-                            string? globString = ParseGlobString(configFile, lineNum, buf, ref pos, length);
-                            if (globString != null)
-                                inConfig = 1;
-                            else
-                                goto error;
-
-                            var fileArgs = ArgvParser.Parse(globString);
-                            if (fileArgs == null)
-                            {
-                                Log.Message(MESS.ERROR, "{0}:{1} error parsing filename\n",
-                                    configFile, lineNum);
-                                goto error;
-                            }
-                            if (fileArgs.Count < 1)
-                            {
-                                Log.Message(MESS.ERROR,
-                                    "{0}:{1} {{ expected after log file name(s)\n",
-                                    configFile, lineNum);
-                                goto error;
-                            }
-
-                            newlog.Files.Clear();
-                            foreach (var arg in fileArgs)
-                            {
-                                if (_globerrMsg != null)
-                                    _globerrMsg = null;
-
-                                if (arg.Length > 2048)
-                                {
-                                    Log.Message(MESS.ERROR, "{0}:{1} glob too long ({2} > 2048)\n",
-                                        configFile, lineNum, arg.Length);
-                                    logerror = 1;
-                                    continue;
-                                }
-
-                                var (rc, matches) = Glob.GlobNoCheck(arg);
-                                if (rc == GlobResultCode.GLOB_ABORTED)
-                                {
-                                    if ((newlog.Flags & LogFlags.MissingOk) != 0)
-                                        continue;
-                                    _globerrMsg = string.Format("{0}:{1} glob failed for {2}: {3}\n",
-                                        configFile, lineNum, arg, "Error accessing path");
-                                    Log.Message(MESS.DEBUG, "{0}", _globerrMsg);
-                                    matches = new List<string>();
-                                }
-
-                                if (matches.Count == 0)
-                                {
-                                    Log.Message(MESS.DEBUG,
-                                        "{0}:{1} no matches for glob '{2}', skipping\n",
-                                        configFile, lineNum, arg);
-                                    continue;
-                                }
-
-                                foreach (var match in matches)
-                                {
-                                    // skip directories
-                                    var st = FileStat.Lstat(match);
-                                    if (st != null && FileStat.IsDirectory(st))
-                                        continue;
-
-                                    bool addFile = true;
-                                    foreach (var log in Logs)
-                                    {
-                                        foreach (var existing in log.Files)
-                                        {
-                                            if (existing == match)
-                                            {
-                                                if ((log.Flags & LogFlags.IgnoreDuplicates) != 0)
-                                                {
-                                                    addFile = false;
-                                                    Log.Message(MESS.DEBUG,
-                                                        "{0}:{1} ignore duplicate log entry for {2}\n",
-                                                        configFile, lineNum, match);
-                                                }
-                                                else
-                                                {
-                                                    Log.Message(MESS.ERROR,
-                                                        "{0}:{1} duplicate log entry for {2}\n",
-                                                        configFile, lineNum, match);
-                                                    logerror = 1;
-                                                    goto duperror;
-                                                }
-                                                break;
-                                            }
-                                        }
-                                        if (!addFile)
-                                            break;
-                                    }
-
-                                    if (addFile)
-                                    {
-                                        newlog.Files.Add(match);
-                                    }
-                                }
-                            duperror:
-                                ;
-                            }
-
-                            newlog.Pattern = globString;
                         }
                         else if (ch == '}')
                         {
@@ -1801,15 +1823,20 @@ string? olddirOwnerSid = null;
                         }
                         else if (ch != '\n')
                         {
-                            Log.Message(MESS.ERROR,
-                                "{0}:{1} lines must begin with a keyword or a filename (possibly in double quotes)\n",
-                                configFile, lineNum);
+                            /* A quoted name ("app log.log"), an absolute path, or an
+                               unquoted name/glob (app.log, logs\*.log, *.log, ...): the
+                               start of a log file definition. */
                             if (newlog != defConfig)
                             {
+                                Log.Message(MESS.ERROR, "{0}:{1} unexpected log filename\n",
+                                    configFile, lineNum);
                                 state = STATE_ERROR;
-                                goto next_state;
+                                continue;
                             }
-                            goto error;
+
+                            if (LogFileSectionStart(configFile, lineNum, buf, defConfig, ref pos, length,
+                                    ref logerror, ref inConfig, ref newlog) != 0)
+                                goto error;
                         }
                         break;
 
