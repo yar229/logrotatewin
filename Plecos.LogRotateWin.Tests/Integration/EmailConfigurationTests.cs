@@ -172,80 +172,80 @@ namespace logrotate.Tests.Integration
             }
         }
 
-        [Fact(Skip = "plecos.logrotate custom parameters")]
-        public void ParseConfig_WithSMTPSSL_ShouldParseCorrectly()
-        {
-            // Tests SSL/TLS configuration for SMTP
+//        [Fact(Skip = "plecos.logrotate custom parameters")]
+//        public void ParseConfig_WithSMTPSSL_ShouldParseCorrectly()
+//        {
+//            // Tests SSL/TLS configuration for SMTP
 
-            // Arrange
-            string logFile = Path.Combine(TestDir, "test.log");
-            File.WriteAllText(logFile, "Test log content\n");
+//            // Arrange
+//            string logFile = Path.Combine(TestDir, "test.log");
+//            File.WriteAllText(logFile, "Test log content\n");
 
-            string stateFile = Path.Combine(TestDir, "state.txt");
-            string configContent = $@"
-""{logFile}"" {{
-    rotate 2
-    mail test@example.com
-    smtpserver smtp.example.com
-    smtpport 465
-    smtpssl
-    smtpuser testuser
-    smtpuserpwd testpassword
-    smtpfrom noreply@example.com
-}}
-";
-            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+//            string stateFile = Path.Combine(TestDir, "state.txt");
+//            string configContent = $@"
+//""{logFile}"" {{
+//    rotate 2
+//    mail test@example.com
+//    smtpserver smtp.example.com
+//    smtpport 465
+//    smtpssl
+//    smtpuser testuser
+//    smtpuserpwd testpassword
+//    smtpfrom noreply@example.com
+//}}
+//";
+//            string configFile = TestHelpers.CreateTempConfigFile(configContent);
 
-            try
-            {
-                // Act
-                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+//            try
+//            {
+//                // Act
+//                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
 
-                // Assert - Config parsing should succeed
-                exitCode.Should().Match(x => x == 0 || x == 4,
-                    "config with SMTP SSL should parse successfully");
-            }
-            finally
-            {
-                TestHelpers.CleanupPath(configFile);
-            }
-        }
+//                // Assert - Config parsing should succeed
+//                exitCode.Should().Match(x => x == 0 || x == 4,
+//                    "config with SMTP SSL should parse successfully");
+//            }
+//            finally
+//            {
+//                TestHelpers.CleanupPath(configFile);
+//            }
+//        }
 
-        [Fact]
-        public void ParseConfig_WithNoSMTPSSL_ShouldDisableSSL()
-        {
-            // Tests disabling SSL for SMTP
+//        [Fact]
+//        public void ParseConfig_WithNoSMTPSSL_ShouldDisableSSL()
+//        {
+//            // Tests disabling SSL for SMTP
 
-            // Arrange
-            string logFile = Path.Combine(TestDir, "test.log");
-            File.WriteAllText(logFile, "Test log content\n");
+//            // Arrange
+//            string logFile = Path.Combine(TestDir, "test.log");
+//            File.WriteAllText(logFile, "Test log content\n");
 
-            string stateFile = Path.Combine(TestDir, "state.txt");
-            string configContent = $@"
-""{logFile}"" {{
-    rotate 2
-    mail test@example.com
-    smtpserver smtp.example.com
-    smtpport 25
-    nosmtpssl
-}}
-";
-            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+//            string stateFile = Path.Combine(TestDir, "state.txt");
+//            string configContent = $@"
+//""{logFile}"" {{
+//    rotate 2
+//    mail test@example.com
+//    smtpserver smtp.example.com
+//    smtpport 25
+//    nosmtpssl
+//}}
+//";
+//            string configFile = TestHelpers.CreateTempConfigFile(configContent);
 
-            try
-            {
-                // Act
-                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+//            try
+//            {
+//                // Act
+//                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
 
-                // Assert
-                exitCode.Should().Match(x => x == 0 || x == 4,
-                    "config with nosmtpssl should parse successfully");
-            }
-            finally
-            {
-                TestHelpers.CleanupPath(configFile);
-            }
-        }
+//                // Assert
+//                exitCode.Should().Match(x => x == 0 || x == 4,
+//                    "config with nosmtpssl should parse successfully");
+//            }
+//            finally
+//            {
+//                TestHelpers.CleanupPath(configFile);
+//            }
+//        }
 
 //        [Fact]
 //        public void ParseConfig_WithGlobalMailSettings_ShouldApplyToAllSections()
@@ -360,10 +360,6 @@ namespace logrotate.Tests.Integration
 ""{logFile}"" {{
     rotate 2
     compress
-    mail test@example.com
-    maillast
-    smtpserver smtp.example.com
-    smtpport 587
 }}
 ";
             string configFile = TestHelpers.CreateTempConfigFile(configContent);

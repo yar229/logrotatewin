@@ -13,22 +13,44 @@ namespace LogRotateWin.LegacyTests;
 public class Tests0064_0073 : ShellTestBase
 {
     /// <summary>
-    /// Test 64: mail subject with compress + maillast + dateext.
-    /// DEVIATION: the config uses 'rotate 0' which LogRotateWin rejects
-    /// ("bad rotation count"), and mail is a no-op in the port.
+    /// Test 64: mail subject with compress + maillast + dateext ('rotate 0').
+    /// The dated file is disposed directly: mailed (compressed, so the body is
+    /// the in-process gunzipped content) and then removed.
     /// </summary>
-    [Fact(Skip = "Deviation: config64 uses 'rotate 0' (rejected by port) and mail semantics are not implemented")]
+    [Fact]
     public void Test0064_MailSubjectCompressDateExt()
     {
+        Preptest("test.log", 1);
+        GenConfig("test-config.64", Config64);
+        string datestring = DateTime.Now.ToString("yyyyMMdd");
+
+        Run("test-config.64", "--force");
+        ExitCode.Should().Be(0);
+
+        CheckOutput(
+            OutputExpectation.Content("test.log", ""));
+
+        CheckMail($"test.log-{datestring}.gz", "zero");
     }
 
     /// <summary>
-    /// Test 65: mail subject without compress + maillast + dateext.
-    /// Same 'rotate 0' + mail-no-op deviation as test 64.
+    /// Test 65: mail subject without compress + maillast + dateext
+    /// ('rotate 0'); same dispose-and-mail flow as test 64.
     /// </summary>
-    [Fact(Skip = "Deviation: config65 uses 'rotate 0' (rejected by port) and mail semantics are not implemented")]
+    [Fact]
     public void Test0065_MailSubjectNoCompressDateExt()
     {
+        Preptest("test.log", 1);
+        GenConfig("test-config.65", Config65);
+        string datestring = DateTime.Now.ToString("yyyyMMdd");
+
+        Run("test-config.65", "--force");
+        ExitCode.Should().Be(0);
+
+        CheckOutput(
+            OutputExpectation.Content("test.log", ""));
+
+        CheckMail($"test.log-{datestring}", "zero");
     }
 
     /// <summary>
@@ -216,6 +238,35 @@ public class Tests0064_0073 : ShellTestBase
     // =====================================================================
     // configs (ported from test-config.N.in)
     // =====================================================================
+
+    private const string Config64 = """
+        create
+
+        "&DIR&/test.log" {
+            daily
+            dateext
+            dateformat -%Y%m%d
+            rotate 0
+            compress
+            nosharedscripts
+            mail user@invalid.
+            maillast
+        }
+        """;
+
+    private const string Config65 = """
+        create
+
+        "&DIR&/test.log" {
+            daily
+            dateext
+            dateformat -%Y%m%d
+            rotate 0
+            nosharedscripts
+            mail user@invalid.
+            maillast
+        }
+        """;
 
     private const string Config66 = """
         create

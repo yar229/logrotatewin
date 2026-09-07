@@ -33,11 +33,10 @@ public class Tests0074_0083 : ShellTestBase
 
     /// <summary>
     /// Test 75 / 76: delaycompress + mail / compress + mail.
-    /// DEVIATION: 'size 0' is rejected by the port, the port cannot run the
-    /// mailer.cmd helper (its mail invocation fails with "mailer.cmd is not
-    /// recognized"), and externally pre-compressed source logs are used via
-    /// the harness; the 'mail' option and 'size 0' trigger are dropped and
-    /// only the compression + rotation semantics are asserted.
+    /// DEVIATION: 'size 0' is rejected by the port (mirrors the reference
+    /// trigger via a real size), and externally pre-compressed source logs are
+    /// used via the harness; the rotated-away backup is mailed (compressed, so
+    /// the body is the in-process gunzipped content).
     /// </summary>
     [Fact]
     public void Test0075_DelayCompress()
@@ -51,12 +50,14 @@ public class Tests0074_0083 : ShellTestBase
             OutputExpectation.Content("test.log", ""),
             OutputExpectation.Content("test.log.1", "zero"),
             OutputExpectation.Content("test.log.2.gz", "first", compressed: true));
+
+        CheckMail("test.log.3.gz", "second");
     }
 
     /// <summary>
     /// Test 76: compress with closed stdin/stdout. The port runs the child
-    /// with redirected handles regardless; 'size 0' and mail are dropped
-    /// (see test 75 doc).
+    /// with redirected handles regardless; the rotated-away backup is mailed
+    /// with the compressed body gunzipped in-process.
     /// </summary>
     [Fact]
     public void Test0076_CompressClosedStdio()
@@ -70,6 +71,8 @@ public class Tests0074_0083 : ShellTestBase
             OutputExpectation.Content("test.log", ""),
             OutputExpectation.Content("test.log.1.gz", "zero", compressed: true),
             OutputExpectation.Content("test.log.2.gz", "first", compressed: true));
+
+        CheckMail("test.log.3.gz", "second");
     }
 
     /// <summary>
@@ -239,6 +242,7 @@ public class Tests0074_0083 : ShellTestBase
             size 1
             compress
             delaycompress
+            mail user@invalid.
         }
         """;
 
@@ -248,6 +252,7 @@ public class Tests0074_0083 : ShellTestBase
             rotate 2
             size 1
             compress
+            mail user@invalid.
         }
         """;
 

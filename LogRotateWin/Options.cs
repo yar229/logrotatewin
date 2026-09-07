@@ -12,15 +12,17 @@ namespace LogRotate
         public const string Version = "3.22.0";
 
 
-        // Defaults for the Windows port. External programs are looked up in
+// Defaults for the Windows port. External programs are looked up in
         // PATH, mirroring the original behavior of invoking gzip/gunzip.
+        // Compression is done in-process (see LogRotateEngine), and mailing
+        // decompresses in-process the same way (see MailSender).
         public static string DefaultCompressCommand { get; } =
             Environment.GetEnvironmentVariable(EnviromentVariables.Compress)
             ?? ""; //"gzip";
 
         public static string DefaultUncompressCommand { get; } =
             Environment.GetEnvironmentVariable(EnviromentVariables.Uncompress)
-            ?? "gunzip";
+            ?? ""; //"gunzip";
 
         public static string DefaultCompressExt { get; } = ".gz";
 

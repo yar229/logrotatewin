@@ -8,7 +8,7 @@ namespace LogRotate;
 
 internal static class MailSender
 {
-    public static int MailLogWrapper(string mailFilename, string mailCommand,
+    public static int MailLogWrapper_NEW_DO_IT_LATER(string mailFilename, string mailCommand,
                                   int logNum, LogInfo log)
     {
         var result = ProcessRunner.RunScript(mailCommand, mailFilename, null, 
@@ -16,11 +16,26 @@ internal static class MailSender
         return result;
     }
 
-    public static int MailLogWrapperOriginal(string mailFilename, string mailCommand,
+public static int MailLogWrapper(string mailFilename, string mailCommand,
                                       int logNum, LogInfo log)
     {
+        if (string.IsNullOrEmpty(mailCommand))
+        {
+            Log.Message(MESS.DEBUG, "sending email for '{0}' skipped because mail command is empty\n", mailFilename);
+            return 0;
+        }
+
+        /* The port never relies on external gzip/gunzip: compression is done
+         * in-process, so the empty/default uncompress command is realized as
+         * an in-process gunzip too. An explicitly configured uncompresscmd is
+         * still spawned as an external program (mirrors the reference). */
+        bool internalUncompress = (log.Flags & LogFlags.Compress) != 0
+            && string.IsNullOrEmpty(log.UncompressProg);
         string? uncompressProg = (log.Flags & LogFlags.Compress) != 0
-            ? log.UncompressProg : null;
+            ? (internalUncompress ? string.Empty : log.UncompressProg)
+            : null;
+
+        Log.Message(MESS.DEBUG, "executing mail command '{0}' for {1}\n", mailCommand, mailFilename);
 
         string subject = mailFilename;
         if ((log.Flags & LogFlags.MailFirst) != 0)
@@ -32,15 +47,16 @@ internal static class MailSender
         }
 
         return MailLog(log, mailFilename, mailCommand, uncompressProg,
-                       log.LogAddress!, subject);
+                       internalUncompress, log.LogAddress!, subject);
     }
 
     /// <summary>
     /// Port of mailLog(): optionally decompress into a pipe feeding the mail
     /// command "mail -s subject address".
     /// </summary>
-    private static int MailLog(LogInfo log, string logFile, string mailCommand,
-                               string? uncompress, string address, string subject)
+private static int MailLog(LogInfo log, string logFile, string mailCommand,
+                               string? uncompress, bool internalUncompress,
+                               string address, string subject)
     {
         FileStream mailInput;
         try
@@ -62,7 +78,7 @@ internal static class MailSender
             mail.StartInfo = new ProcessStartInfo
             {
                 FileName = mailCommand,
-                UseShellExecute = false,
+                UseShellExecute = false,  //me
                 CreateNoWindow = true,
                 RedirectStandardInput = true,
             };
@@ -85,8 +101,22 @@ internal static class MailSender
                 var feed = TaskHelper.Run(() =>
                 {
                     using var src = mailInput;
-                    using var dst = mail.StandardInput.BaseStream;
-                    src.CopyTo(dst);
+                    src.CopyTo(mail.StandardInput.BaseStream);
+                });
+                feed.GetAwaiter().GetResult();
+            }
+            else if (internalUncompress)
+            {
+                /* in-process gunzip: decompress the .gz log and pipe it into
+                 * the mail command exactly the way the reference pipes it
+                 * through an external gunzip. */
+                var feed = TaskHelper.Run(() =>
+                {
+                    using (var gz = new System.IO.Compression.GZipStream(mailInput,
+                        System.IO.Compression.CompressionMode.Decompress))
+                    {
+                        gz.CopyTo(mail.StandardInput.BaseStream);
+                    }
                 });
                 feed.GetAwaiter().GetResult();
             }
@@ -120,11 +150,10 @@ internal static class MailSender
                         using var dst = up.StandardInput.BaseStream;
                         src.CopyTo(dst);
                     });
-                    var pump = TaskHelper.Run(() =>
+var pump = TaskHelper.Run(() =>
                     {
                         using var src = up.StandardOutput.BaseStream;
-                        using var dst = mail.StandardInput.BaseStream;
-                        src.CopyTo(dst);
+                        src.CopyTo(mail.StandardInput.BaseStream);
                     });
                     feed.GetAwaiter().GetResult();
                     up.StandardInput.Close();

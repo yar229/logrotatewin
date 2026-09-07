@@ -211,7 +211,14 @@ public class Tests0001_0016 : ShellTestBase
     [Fact]
     public void Test0011_CompressRotateOneMailLast()
     {
-        Preptest("test.log", 2);
+        /* reference: preptest test.log 11 2 1 - the base stays plain, only the
+         * backups are pre-compressed (Preptest(compressed) would gzip the base
+         * too). */
+        WriteFile("test.log", "zero\n");
+        WriteFile("test.log.1", "first\n");
+        GzipCompress(P("test.log.1"));
+        WriteFile("test.log.2", "second\n");
+        GzipCompress(P("test.log.2"));
         GenConfig("test-config.11", Config11);
         Run("test-config.11", "--force");
         ExitCode.Should().Be(0);
