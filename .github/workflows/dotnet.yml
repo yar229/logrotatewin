@@ -35,8 +35,8 @@ jobs:
       - name: Build
         run: dotnet build LogRotateWin.slnx --configuration Release --no-restore --self-contained false -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:Version=$env:PROJECT_VERSION
 
-      - name: Publish
-        run: dotnet publish LogRotateWin/LogRotateWin.csproj --configuration Release --no-build --output publish -p:DebugType=None -p:DebugSymbols=false -p:Version=$env:PROJECT_VERSION
+- name: Publish
+        run: dotnet publish LogRotateWin/LogRotateWin.csproj --configuration Release -p:PublishSingleFile=true -p:SelfContained=false -p:Version=$env:PROJECT_VERSION --output publish
 
       - name: Verify exe version
         shell: pwsh
@@ -46,7 +46,7 @@ jobs:
       - name: Archive
         shell: pwsh
         run: |
-          Compress-Archive -Path publish\* -DestinationPath "logrotatewin-$env:VERSION.zip" -Force
+          Compress-Archive -Path publish\logrotate.exe -DestinationPath "logrotatewin-$env:VERSION.zip" -Force
 
       - name: Create Release
         env:
