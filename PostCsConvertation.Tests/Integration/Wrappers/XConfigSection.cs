@@ -3,6 +3,7 @@ using PostCsConvertation.Tests.Integration.Base;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace PostCsConvertation.Tests.Integration.Wrappers
@@ -77,7 +78,13 @@ namespace PostCsConvertation.Tests.Integration.Wrappers
                 return sb.ToString();
             }
 
-            sb.Append(string.Join(" ", _filePatterns.Select(fp => TestHelpersNewWave.Quote(fp))) + " {" + lineSeparator);
+            sb.Append(string.Join(" ", _filePatterns.Select(fp =>
+            {
+                return fp.ToString()
+                    .Any(ch => char.IsWhiteSpace(ch))
+                        ? TestHelpersNewWave.Quote(fp)
+                        : fp;
+            })) + " {" + lineSeparator);
             foreach (var str in _directives)
                 sb.Append($"\t{str}{lineSeparator}");
             sb.Append("}");
