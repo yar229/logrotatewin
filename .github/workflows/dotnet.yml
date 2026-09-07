@@ -46,7 +46,10 @@ jobs:
       - name: Archive
         shell: pwsh
         run: |
-          Compress-Archive -Path publish\logrotate.exe -DestinationPath "logrotatewin-$env:VERSION.zip" -Force
+          Copy-Item README.md "publish\README.md" -Force
+          Push-Location publish
+          Compress-Archive -Path "logrotate.exe", "README.md" -DestinationPath "..\logrotatewin-$env:VERSION.zip" -Force
+          Pop-Location
 
       - name: Create Release
         env:
