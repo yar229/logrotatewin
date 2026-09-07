@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Xml.Linq;
 
 namespace LogRotate;
 
@@ -54,7 +55,7 @@ public static int MailLogWrapper(string mailFilename, string mailCommand,
     /// Port of mailLog(): optionally decompress into a pipe feeding the mail
     /// command "mail -s subject address".
     /// </summary>
-private static int MailLog(LogInfo log, string logFile, string mailCommand,
+    private static int MailLog(LogInfo log, string logFile, string mailCommand,
                                string? uncompress, bool internalUncompress,
                                string address, string subject)
     {
@@ -132,6 +133,9 @@ private static int MailLog(LogInfo log, string logFile, string mailCommand,
                         RedirectStandardInput = true,
                         RedirectStandardOutput = true,
                     };
+                    foreach (var arg in log.UnCompressOptions)
+                        up.StartInfo.ArgumentList.Add(arg);
+                    
                     try
                     {
                         up.Start();
@@ -150,7 +154,7 @@ private static int MailLog(LogInfo log, string logFile, string mailCommand,
                         using var dst = up.StandardInput.BaseStream;
                         src.CopyTo(dst);
                     });
-var pump = TaskHelper.Run(() =>
+                    var pump = TaskHelper.Run(() =>
                     {
                         using var src = up.StandardOutput.BaseStream;
                         src.CopyTo(mail.StandardInput.BaseStream);

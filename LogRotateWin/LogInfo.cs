@@ -95,5 +95,7 @@ namespace LogRotate
         public long OlddirGid = Sentinel.NO_GID;
 
         public List<string> CompressOptions { get; } = new List<string>();
+
+        public List<string> UnCompressOptions { get; } = new List<string>();
     }
 }

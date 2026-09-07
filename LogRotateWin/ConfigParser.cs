@@ -386,7 +386,7 @@ bool error = false;
             {
                 foreach (var c in path)
                 {
-                    if (!C.IsPrint(c) || C.IsBlank(c))
+                    if (!C.IsPrint(c)) // not bad on windows // || C.IsBlank(c))
                     {
                         Log.Message(MESS.ERROR, "{0}:{1} bad {2} path {3}\n",
                             configFile, lineNum, key, path);
@@ -1517,7 +1517,36 @@ string? olddirOwnerSid = null;
                                     goto error;
                                 }
                                 newlog.CompressOptions.AddRange(parsed);
-                                Log.Message(MESS.DEBUG, "compress_options is now {0}\n", options);
+                                Log.Message(MESS.DEBUG, "{0} is now {1}\n", Op.CompressOptions, options);
+                            }
+                            else if (key == Op.UnCompressOptions)
+                            {
+                                newlog.UnCompressOptions.Clear();
+                                string? options = IsolateLine(buf, ref pos, length);
+                                if (options == null)
+                                {
+                                    if (newlog != defConfig)
+                                    {
+                                        state = STATE_ERROR;
+                                        goto next_state;
+                                    }
+                                    goto error;
+                                }
+                                var parsed = ArgvParser.Parse(options);
+                                if (parsed == null)
+                                {
+                                    Log.Message(MESS.ERROR,
+                                        "{0}:{1} invalid uncompression options\n",
+                                        configFile, lineNum);
+                                    if (newlog != defConfig)
+                                    {
+                                        state = STATE_ERROR;
+                                        goto next_state;
+                                    }
+                                    goto error;
+                                }
+                                newlog.UnCompressOptions.AddRange(parsed);
+                                Log.Message(MESS.DEBUG, "{0} is now {1}\n", Op.UnCompressOptions, options);
                             }
                             else if (key == Op.CompressExt)
                             {

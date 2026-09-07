@@ -85,4 +85,5 @@ public static class ConfigSectionDirectives
 
     //custom non-standart directives
     public const string MailCmd = "mailcmd";
+    public const string UnCompressOptions = "uncompressoptions";
 }
