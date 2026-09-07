@@ -458,6 +458,7 @@ bool error = false;
             to.Last = from.Last;
             to.PreRemove = from.PreRemove;
             to.MailCmd = from.MailCmd;
+            to.MailAsScript = from.MailAsScript;
             to.LogAddress = from.LogAddress;
             to.Extension = from.Extension;
             to.AddExtension = from.AddExtension;
@@ -503,6 +504,7 @@ to.CreateMode = from.CreateMode;
             target.Last = copy.Last;
             target.PreRemove = copy.PreRemove;
             target.MailCmd = copy.MailCmd;
+            target.MailAsScript = copy.MailAsScript;
             target.LogAddress = copy.LogAddress;
             target.Extension = copy.Extension;
             target.AddExtension = copy.AddExtension;
@@ -511,7 +513,7 @@ to.CreateMode = from.CreateMode;
             target.CompressExt = copy.CompressExt;
             target.Flags = copy.Flags;
             target.ShredCycles = copy.ShredCycles;
-target.CreateMode = copy.CreateMode;
+            target.CreateMode = copy.CreateMode;
             target.CreateUid = copy.CreateUid;
             target.CreateGid = copy.CreateGid;
             target.CreateOwnerSid = copy.CreateOwnerSid;
@@ -1250,11 +1252,11 @@ string? olddirOwnerSid = null;
                                 scriptDest = Op.Preremove;
                                 state = STATE_LOAD_SCRIPT;
                             }
-                            else if (key == Op.MailCmd)
+                            else if (key == Op.MailScript)
                             {
                                 newlog.MailCmd = null;
                                 scriptStart = pos;
-                                scriptDest = Op.MailCmd;
+                                scriptDest = Op.MailScript;
                                 state = STATE_LOAD_SCRIPT;
                             }
                             else if (key == Op.TabooExt)
@@ -1878,7 +1880,7 @@ string? olddirOwnerSid = null;
                                     case Op.PostRotate: newlog.Post = script; break;
                                     case Op.LastAction: newlog.Last = script; break;
                                     case Op.Preremove: newlog.PreRemove = script; break;
-                                    case Op.MailCmd: newlog.MailCmd = script; break;
+                                    case Op.MailScript: newlog.MailCmd = script; newlog.MailAsScript = true; break;
                                 }
                                 scriptDest = null;
                                 scriptStart = -1;
@@ -1906,7 +1908,7 @@ string? olddirOwnerSid = null;
                             if (key == null)
                                 continue;
                             if (key == Op.PostRotate || key == Op.PreRotate || key == Op.FirstAction
-                                || key == Op.LastAction || key == Op.Preremove || key == Op.MailCmd)
+                                || key == Op.LastAction || key == Op.Preremove || key == Op.MailScript)
                             {
                                 state = STATE_LOAD_SCRIPT | STATE_SKIP_CONFIG;
                             }
@@ -1933,7 +1935,7 @@ string? olddirOwnerSid = null;
             if (scriptStart != -1)
             {
                 Log.Message(MESS.ERROR,
-                    $"{0}:{Op.PreRotate}, {Op.PostRotate}, {Op.Preremove} or {Op.MailCmd} without endscript\n",
+                    $"{0}:{Op.PreRotate}, {Op.PostRotate}, {Op.Preremove} or {Op.MailScript} without endscript\n",
                     configFile);
                 goto error;
             }

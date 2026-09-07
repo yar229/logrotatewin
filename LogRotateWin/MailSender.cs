@@ -9,21 +9,21 @@ namespace LogRotate;
 
 internal static class MailSender
 {
-    public static int MailLogWrapper_NEW_DO_IT_LATER(string mailFilename, string mailCommand,
-                                  int logNum, LogInfo log)
-    {
-        var result = ProcessRunner.RunScript(mailCommand, mailFilename, null, 
-            (EnviromentVariables.MailTo, log.LogAddress));
-        return result;
-    }
-
-public static int MailLogWrapper(string mailFilename, string mailCommand,
+    public static int MailLogWrapper(string mailFilename, string mailCommand,
                                       int logNum, LogInfo log)
     {
         if (string.IsNullOrEmpty(mailCommand))
         {
             Log.Message(MESS.DEBUG, "sending email for '{0}' skipped because mail command is empty\n", mailFilename);
             return 0;
+        }
+
+        if (log.MailAsScript)
+        {
+            var result = ProcessRunner.RunScript(mailCommand, 
+                (ScriptEnviromentVariables.Log, mailFilename), 
+                (ScriptEnviromentVariables.MailTo, log.LogAddress));
+            return result;
         }
 
         /* The port never relies on external gzip/gunzip: compression is done

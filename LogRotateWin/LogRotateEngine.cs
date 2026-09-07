@@ -985,7 +985,7 @@ namespace LogRotate
                     };
                     foreach (var arg in log.CompressOptions)
                         psi.ArgumentList.Add(arg);
-                    psi.Environment[EnviromentVariables.CompressedFilename] = name;
+                    psi.Environment[ScriptEnviromentVariables.CompressedFilename] = name;
 
                     try
                     {
@@ -2071,7 +2071,10 @@ hasErrors = CopyTruncate(log.Files[logNum], rotNames.FinalName!,
                     logfn, logrotfn ?? "", script);
                 return 0;
             }
-            return ProcessRunner.RunScript(script, logfn, logrotfn);
+            //return ProcessRunner.RunScript(script, logfn, logrotfn);
+            return ProcessRunner.RunScript(script,
+                (ScriptEnviromentVariables.Log, logfn),
+                (ScriptEnviromentVariables.LogRotated, logrotfn));
         }
 
         // =================================================================
