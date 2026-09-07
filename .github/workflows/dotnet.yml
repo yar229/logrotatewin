@@ -35,7 +35,7 @@ jobs:
       - name: Build
         run: dotnet build LogRotateWin.slnx --configuration Release --no-restore --self-contained false -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:Version=$env:PROJECT_VERSION
 
-- name: Publish
+      - name: Publish
         run: dotnet publish LogRotateWin/LogRotateWin.csproj --configuration Release -p:PublishSingleFile=true -p:SelfContained=false -p:Version=$env:PROJECT_VERSION --output publish
 
       - name: Verify exe version
