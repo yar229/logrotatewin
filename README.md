@@ -1,7 +1,6 @@
-# LogRotateWin
+# [LogRotateWin](https://github.com/yar229/logrotatewin)
 
-Порт утилиты **logrotate 3.22.0** из Ubuntu (исходные тексты лежат в папке
-`logrotate-3.22.0`) под Windows на платформе .NET 10.
+Порт утилиты [logrotate](https://launchpad.net/ubuntu/+source/logrotate) v.3.22.0 из Ubuntu на платформу .NET 10 под Windows.
 
 ## Об утилите
 
