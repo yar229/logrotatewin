@@ -88,100 +88,8 @@ namespace LogRotate
             return result;
         }
 
-
-        //public static int RunScript(string script, string logFilename, string? logRotatedFilename,
-        //    params KeyValuePair<string, string>[] additionalParams)
-        //{
-        //    var args = new List<KeyValuePair<string, string>>(additionalParams.Length + 2);
-        //    args.Add(new KeyValuePair<string, string>("LOGROTATE_LOG", logFilename));
-        //    args.Add(new KeyValuePair<string, string>("LOGROTATE_LOGROTATED", logRotatedFilename));
-        //    args.AddRange(additionalParams);
-
-        //    string tempScriptFilepath = string.Empty;
-        //    try
-        //    {
-        //        string temp_path_orig = Path.GetTempFileName();
-        //        tempScriptFilepath = Path.ChangeExtension(temp_path_orig, "cmd");
-        //        File.Delete(temp_path_orig);
-
-        //        File.WriteAllText(tempScriptFilepath, script);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Log.Message(MESS.ERROR, "cannot create temp script file {0}: {1}\n", tempScriptFilepath, ex.Message);
-        //        return 1;
-        //    }
-
-        //    string cmd = Environment.GetEnvironmentVariable("COMSPEC")
-        //            ?? Path.Combine(Environment.SystemDirectory, "cmd.exe");
-
-        //    var cmdargs = new StringBuilder();
-        //    {
-        //        cmdargs.Append("/S /C ");
-        //        cmdargs.Append("\"");
-        //        {
-        //            cmdargs.Append("\"" + tempScriptFilepath + "\" ");
-        //            foreach (var arg in args)
-        //                cmdargs.Append("\"" + (arg.Value ?? string.Empty) + "\" ");
-        //        }
-        //        cmdargs.Append("\"");
-        //    }
-
-        //    var psi = new ProcessStartInfo(cmd, cmdargs.ToString())
-        //    {
-        //        UseShellExecute = false,
-        //        RedirectStandardError = true,
-        //        RedirectStandardOutput = true,
-        //        CreateNoWindow = false,
-        //    };
-
-        //    foreach (var arg in args)
-        //    {
-        //        if (!string.IsNullOrWhiteSpace(arg.Key))
-        //            psi.Environment[arg.Key] = arg.Value;
-        //    }
-
-        //    var result = new ProcessResult();
-        //    try
-        //    {
-        //        using var proc = Process.Start(psi)!;
-
-        //        var outputTask = proc.StandardOutput.ReadToEndAsync();
-        //        var errorTask = proc.StandardError.ReadToEndAsync();
-        //        Task.WaitAll(outputTask, errorTask);
-        //        result.StdOut = outputTask.Result;
-        //        result.StdErr = errorTask.Result;
-
-        //        proc.WaitForExit();
-        //        result.ExitCode = proc.ExitCode;
-
-        //        if (!string.IsNullOrEmpty(result.StdOut))
-        //            Log.Message(MESS.DEBUG, "process execution STDOUT log: {0}\n", result.StdOut);
-        //        if (!string.IsNullOrEmpty(result.StdErr))
-        //            Log.Message(MESS.ERROR, "process execution STDERR log: {0}\n", result.StdErr);
-        //    }
-        //    catch (System.ComponentModel.Win32Exception ex)
-        //    {
-        //        result.ExitCode = -1;
-        //        result.StdErr = ex.Message;
-        //    }
-        //    return result.ExitCode;
-        //}
-
-
-
-
-
-
-
-        public static int RunScript(string script, string logFilename, string? logRotatedFilename,
-            params (string EnvVar, string Value)[] additionalParams)
+        public static int RunScript(string script, params (string EnvVar, string Value)[] additionalParams)
         {
-            var args = new List<(string EnvVar, string Value)>(additionalParams.Length + 2);
-            args.Add(new (EnviromentVariables.Log, logFilename));
-            args.Add(new (EnviromentVariables.LogRotated, logRotatedFilename));
-            args.AddRange(additionalParams);
-
             string tempScriptFilepath = string.Empty;
             try
             {
@@ -206,7 +114,7 @@ namespace LogRotate
                 cmdargs.Append("\"");
                 {
                     cmdargs.Append("\"" + tempScriptFilepath + "\" ");
-                    foreach (var arg in args)
+                    foreach (var arg in additionalParams)
                         cmdargs.Append("\"" + (arg.Value ?? string.Empty) + "\" ");
                 }
                 cmdargs.Append("\"");
@@ -220,7 +128,7 @@ namespace LogRotate
                 CreateNoWindow = false,
             };
 
-            foreach (var arg in args)
+            foreach (var arg in additionalParams)
             {
                 if (!string.IsNullOrWhiteSpace(arg.EnvVar))
                     psi.Environment[arg.EnvVar] = arg.Value;

@@ -262,7 +262,7 @@ namespace logrotate.Tests.Integration
     dateformat %Y-%m-%d-%H-%M-%S
     create
     preremove
-        echo Removing dated file %{EnviromentVariables.Log}% > ""{markerFile}""
+        echo Removing dated file %{ScriptEnviromentVariables.Log}% > ""{markerFile}""
     endscript
 }}
 ";
