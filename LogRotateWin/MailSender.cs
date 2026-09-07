@@ -151,8 +151,7 @@ public static int MailLogWrapper(string mailFilename, string mailCommand,
                     var feed = TaskHelper.Run(() =>
                     {
                         using var src = mailInput;
-                        using var dst = up.StandardInput.BaseStream;
-                        src.CopyTo(dst);
+                        src.CopyTo(up.StandardInput.BaseStream);
                     });
                     var pump = TaskHelper.Run(() =>
                     {
