@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Xunit;
 
@@ -45,6 +46,16 @@ namespace logrotate.Tests.Integration
 
         public int RunLogRotate(params string[] args)
         {
+            // If no -s/--state was given, the exe falls back to the shared
+            // default state file (%LOCALAPPDATA%\logrotate\status). Tests run
+            // in parallel, so several instances would race over that single
+            // file + its non-blocking byte-range lock and randomly fail.
+            // Always isolate each invocation behind a per-test state file.
+            if (!args.Contains("-s") && !args.Contains("--state"))
+            {
+                args = args.Concat(new[] { "-s", Path.Combine(TestDir, "state") }).ToArray();
+            }
+
             ProcessStartInfo psi = new ProcessStartInfo();
             psi.FileName = _exePath;
             psi.Arguments = string.Join(" ", args);
