@@ -1,7 +1,7 @@
 # LogRotateWin
 
 Порт утилиты **logrotate 3.22.0** из Ubuntu (исходные тексты лежат в папке
-`logrotate-3.22.0`) под Windows на платформе .NET (проект `LogRotateWin`).
+`logrotate-3.22.0`) под Windows на платформе .NET 10.
 
 ## Об утилите
 
