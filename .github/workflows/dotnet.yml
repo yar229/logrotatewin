@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -36,10 +36,19 @@ jobs:
         run: dotnet build LogRotateWin.slnx --configuration Release --no-restore -p:Version=$env:PROJECT_VERSION
 
       - name: Publish
-        run: dotnet publish LogRotateWin/LogRotateWin.csproj --configuration Release --no-build --output publish
+        run: dotnet publish LogRotateWin/LogRotateWin.csproj --configuration Release --no-build --output publish -p:Version=$env:PROJECT_VERSION
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: logrotatewin-${{ env.VERSION }}
-          path: publish/
+      - name: Verify exe version
+        shell: pwsh
+        run: |
+          (Get-Item publish\logrotate.exe).VersionInfo | Format-List ProductVersion,FileVersion
+
+      - name: Archive
+        shell: pwsh
+        run: |
+          Compress-Archive -Path publish\* -DestinationPath "logrotatewin-$env:VERSION.zip" -Force
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" "logrotatewin-$env:VERSION.zip" --title "${{ github.ref_name }}" --generate-notes
