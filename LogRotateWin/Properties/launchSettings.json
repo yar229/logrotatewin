@@ -2,7 +2,7 @@
   "profiles": {
     "LogRotate": {
       "commandName": "Project",
-      "commandLineArgs": "-v -s c:\\1\\state.txt \"c:\\1\\config.conf\""
+      "commandLineArgs": "--mail mail.cmd -v -s c:\\1\\state.txt \"c:\\1\\config.conf\""
     }
   }
 }

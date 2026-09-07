@@ -33,7 +33,7 @@ jobs:
         run: dotnet restore LogRotateWin.slnx
 
       - name: Build
-        run: dotnet build LogRotateWin.slnx --configuration Release --no-restore -p:Version=$env:PROJECT_VERSION
+        run: dotnet build LogRotateWin.slnx --configuration Release --no-restore --self-contained false -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:Version=$env:PROJECT_VERSION
 
       - name: Publish
         run: dotnet publish LogRotateWin/LogRotateWin.csproj --configuration Release --no-build --output publish -p:Version=$env:PROJECT_VERSION
