@@ -24,6 +24,7 @@ public static class ConfigSectionDirectives
     public const string NotIfEmpty = "notifempty";
     public const string MissingOk = "missingok";
     public const string NoMissingOk = "nomissingok";
+    public const string IfNotLocked = "ifnotlocked";
     public const string IgnoreDuplicates = "ignoreduplicates";
     public const string Monthly = "monthly";
     public const string SharedScripts = "sharedscripts";

@@ -1321,6 +1321,16 @@ namespace LogRotate
                         + "(log is empty)\n");
             }
 
+            /* The ifnotlocked directive: skip rotation while the log file is
+             * locked (held open without sharing) by another process. */
+            if (state.DoRotate && (log.Flags & LogFlags.IfNotLocked) != 0
+                    && IsFileLocked(log.Files[logNum]))
+            {
+                state.DoRotate = false;
+                Log.Message(MESS.DEBUG, "  log {0} is locked by another process -- skipping rotation\n",
+                    log.Files[logNum]);
+            }
+
             if (state.DoRotate)
             {
                 Log.Message(MESS.DEBUG, "  log needs rotating\n");
@@ -1332,6 +1342,32 @@ namespace LogRotate
         private static DateTime ToLocal(DateTime dt)
         {
             return dt.Kind == DateTimeKind.Utc ? dt.ToLocalTime() : dt;
+        }
+
+        /// <summary>
+        /// Returns true when another process holds the file open in a way that
+        /// would prevent logrotate from renaming/rotating it (i.e. the file is
+        /// locked). Used by the 'ifnotlocked' directive.
+        /// </summary>
+        private static bool IsFileLocked(string path)
+        {
+            try
+            {
+                using (var fs = new FileStream(path, FileMode.Open, FileAccess.ReadWrite,
+                        FileShare.ReadWrite | FileShare.Delete))
+                {
+                    // handle acquired successfully: the file is not locked
+                }
+                return false;
+            }
+            catch (IOException)
+            {
+                return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return true;
+            }
         }
 
         // =================================================================

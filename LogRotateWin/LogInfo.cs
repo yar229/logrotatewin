@@ -28,6 +28,7 @@ namespace LogRotate
         DateHourAgo      = 1U << 15,
         AllowHardLink    = 1U << 16,
         IgnoreDuplicates = 1U << 17,
+        IfNotLocked      = 1U << 18,
     }
 
     public enum Criterium

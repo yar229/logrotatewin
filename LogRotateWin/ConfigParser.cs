@@ -240,7 +240,7 @@ private static bool ResolveUid(string userName, out long uid, out string? sid)
         /// <summary>
         /// readModeUidGid() port. Returns true on error.
         /// </summary>
-private static bool ReadModeUidGid(string configFile, int lineNum, string directive,
+        private static bool ReadModeUidGid(string configFile, int lineNum, string directive,
                                            string value, ref long mode, ref long uid, ref long gid,
                                            ref string? ownerSid, ref string? groupSid)
         {
@@ -322,7 +322,7 @@ private static bool ReadModeUidGid(string configFile, int lineNum, string direct
                 groupstr = null;
             }
 
-bool error = false;
+            bool error = false;
             if (groupstr != null)
             {
                 if (!ResolveGid(groupstr, out gid, out groupSid))
@@ -964,6 +964,7 @@ to.CreateMode = from.CreateMode;
                             else if (key == Op.NoCopy) newlog.Flags &= ~LogFlags.Copy;
                             else if (key == Op.IfEmpty) newlog.Flags |= LogFlags.IfEmpty;
                             else if (key == Op.NotIfEmpty) newlog.Flags &= ~LogFlags.IfEmpty;
+                            else if (key == Op.IfNotLocked) newlog.Flags |= LogFlags.IfNotLocked;
                             else if (key == Op.DateExt) newlog.Flags |= LogFlags.DateExt;
                             else if (key == Op.NoDateExt) newlog.Flags &= ~LogFlags.DateExt;
                             else if (key == Op.DateYesterday) newlog.Flags |= LogFlags.DateYesterday;
@@ -992,7 +993,7 @@ to.CreateMode = from.CreateMode;
                                     }
                                     goto error;
                                 }
-long tmpMode = Sentinel.NO_MODE;
+                                long tmpMode = Sentinel.NO_MODE;
                                 string? unusedOwnerSid = null;
                                 string? unusedGroupSid = null;
                                 bool err = ReadModeUidGid(configFile, lineNum, Op.Su, key,
