@@ -13,6 +13,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class PreRemoveDirectiveTests : IntegrationTestBase
     {
+        public PreRemoveDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithPreRemoveScript_ShouldExecuteBeforeDeletion()
         {
@@ -258,7 +262,7 @@ namespace logrotate.Tests.Integration
     dateformat %Y-%m-%d-%H-%M-%S
     create
     preremove
-        echo Removing dated file %{EnviromentVariables.Log}% > ""{markerFile}""
+        echo Removing dated file %{ScriptEnviromentVariables.Log}% > ""{markerFile}""
     endscript
 }}
 ";

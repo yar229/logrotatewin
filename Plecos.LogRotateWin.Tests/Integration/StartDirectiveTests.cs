@@ -11,6 +11,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class StartDirectiveTests : IntegrationTestBase
     {
+        public StartDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithStart0AndCompress_ShouldWorkTogether()
         {

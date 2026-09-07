@@ -178,9 +178,8 @@ public class Tests0017_0030 : ShellTestBase
 
     /// <summary>
     /// Test 27: mailfirst + delaycompress + dateext (regression test named in
-    /// upstream ChangeLog: the wrong file used to be mailed).
-    /// ADAPTATION: CheckMail() is a documented no-op because the port's
-    /// -m path is not a "mail -s subject addr" implemention.
+    /// upstream ChangeLog: the wrong file used to be mailed). The mail is
+    /// realized: subject = the dateext'd rotated file, body = its content.
     /// </summary>
     [Fact]
     public void Test0027_DateextMailFirstDelayCompress()

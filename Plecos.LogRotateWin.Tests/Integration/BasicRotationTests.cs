@@ -8,6 +8,10 @@ namespace logrotate.Tests.Integration
     [Trait("Category", "Integration")]
     public class BasicRotationTests : IntegrationTestBase
     {
+        public BasicRotationTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithRotateCount_ShouldCreateRotatedFiles()
         {

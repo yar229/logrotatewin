@@ -8,6 +8,10 @@ namespace logrotate.Tests.Integration
     [Trait("Category", "Integration")]
     public class SizeBasedIntegrationTests : IntegrationTestBase
     {
+        public SizeBasedIntegrationTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithSize_ShouldRotateWhenExceedingSize()
         {

@@ -12,6 +12,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class MinAgeDirectiveTests : IntegrationTestBase
     {
+        public MinAgeDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithMinAge1AndOldFile_ShouldRotate()
         {

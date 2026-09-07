@@ -12,6 +12,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class HourlyDirectiveTests : IntegrationTestBase
     {
+        public HourlyDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithHourlyDirective_ShouldParseSuccessfully()
         {

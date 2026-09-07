@@ -13,6 +13,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class DateFormatDirectiveTests : IntegrationTestBase
     {
+        public DateFormatDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithDateFormatYearMonthDay_ShouldUseCustomFormat()
         {

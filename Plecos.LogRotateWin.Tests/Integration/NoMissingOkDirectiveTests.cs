@@ -11,71 +11,75 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class NoMissingOkDirectiveTests : IntegrationTestBase
     {
-//        [Fact]
-//        public void RotateLog_WithNoMissingOkAndMissingFile_ShouldError()
-//        {
-//            // Tests that nomissingok causes error when file is missing
+        public NoMissingOkDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
 
-//            // Arrange
-//            string logFile = Path.Combine(TestDir, "nonexistent.log");
-//            // Deliberately don't create the file
+        //        [Fact]
+        //        public void RotateLog_WithNoMissingOkAndMissingFile_ShouldError()
+        //        {
+        //            // Tests that nomissingok causes error when file is missing
 
-//            string stateFile = Path.Combine(TestDir, "state.txt");
-//            string configContent = $@"
-//""{logFile}"" {{
-//    nomissingok
-//    rotate 3
-//    create
-//}}
-//";
-//            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+        //            // Arrange
+        //            string logFile = Path.Combine(TestDir, "nonexistent.log");
+        //            // Deliberately don't create the file
 
-//            try
-//            {
-//                // Act
-//                var exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+        //            string stateFile = Path.Combine(TestDir, "state.txt");
+        //            string configContent = $@"
+        //""{logFile}"" {{
+        //    nomissingok
+        //    rotate 3
+        //    create
+        //}}
+        //";
+        //            string configFile = TestHelpers.CreateTempConfigFile(configContent);
 
-//                // Assert - Should complete without error (logrotate continues processing)
-//                // The file will be skipped but the process should not crash
-//                exitCode.Should().Be(0, "logrotate should continue even if individual files are missing");
-//            }
-//            finally
-//            {
-//                TestHelpers.CleanupPath(configFile);
-//            }
-//        }
+        //            try
+        //            {
+        //                // Act
+        //                var exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
 
-//        [Fact]
-//        public void RotateLog_WithMissingOkDefault_ShouldNotError()
-//        {
-//            // Tests default behavior - missing files don't cause errors
+        //                // Assert - Should complete without error (logrotate continues processing)
+        //                // The file will be skipped but the process should not crash
+        //                exitCode.Should().Be(0, "logrotate should continue even if individual files are missing");
+        //            }
+        //            finally
+        //            {
+        //                TestHelpers.CleanupPath(configFile);
+        //            }
+        //        }
 
-//            // Arrange
-//            string logFile = Path.Combine(TestDir, "nonexistent.log");
-//            // Deliberately don't create the file
+        //        [Fact]
+        //        public void RotateLog_WithMissingOkDefault_ShouldNotError()
+        //        {
+        //            // Tests default behavior - missing files don't cause errors
 
-//            string stateFile = Path.Combine(TestDir, "state.txt");
-//            string configContent = $@"
-//""{logFile}"" {{
-//    rotate 3
-//    create
-//}}
-//";
-//            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+        //            // Arrange
+        //            string logFile = Path.Combine(TestDir, "nonexistent.log");
+        //            // Deliberately don't create the file
 
-//            try
-//            {
-//                // Act
-//                var exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+        //            string stateFile = Path.Combine(TestDir, "state.txt");
+        //            string configContent = $@"
+        //""{logFile}"" {{
+        //    rotate 3
+        //    create
+        //}}
+        //";
+        //            string configFile = TestHelpers.CreateTempConfigFile(configContent);
 
-//                // Assert - Default behavior should not error on missing files
-//                exitCode.Should().Be(0, "default missingok behavior should not error on missing files");
-//            }
-//            finally
-//            {
-//                TestHelpers.CleanupPath(configFile);
-//            }
-//        }
+        //            try
+        //            {
+        //                // Act
+        //                var exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+
+        //                // Assert - Default behavior should not error on missing files
+        //                exitCode.Should().Be(0, "default missingok behavior should not error on missing files");
+        //            }
+        //            finally
+        //            {
+        //                TestHelpers.CleanupPath(configFile);
+        //            }
+        //        }
 
         [Fact]
         public void RotateLog_WithNoMissingOkAndExistingFile_ShouldRotateNormally()

@@ -286,18 +286,19 @@ public abstract class ShellTestBase : IDisposable
     }
 
     /// <summary>
-    /// equivalent of checkmail() from test-common.sh.
-    /// ADAPTATION: LogRotateWin's "-m &lt;command&gt;" path (MailLogWrapper in
-    /// MailSender.cs) does not implement "mail -s &lt;subject&gt; &lt;address&gt;" with the
-    /// log contents piped to stdin, and mail delivery itself is unreliable
-    /// (e.g. no mail for maillast+rotate 1). The exact subject/body can never
-    /// match the reference, so mail-body verification is skipped the way the
-    /// reference checks it; rotation behavior is still fully covered by
-    /// CheckOutput(). Deviation from upstream test-common.sh.
+    /// Realized "checkmail()" from test-common.sh. The mailer.cmd helper writes
+    /// the mail command line ("-s &lt;subject&gt; &lt;address&gt;") plus the piped
+    /// log body into mail-out; this asserts the exact two lines, normalized for
+    /// line endings, with the subject being the absolute path of the file the
+    /// reference would use ("$PWD/&lt;mailFile&gt;").
     /// </summary>
     public void CheckMail(string mailFile, string contents)
     {
-        // no-op: mail semantics are not implemented in the port
+        File.Exists(MailOutPath).Should().BeTrue("no mail-out: mailer.cmd never ran");
+        string expected =
+            "-s " + P(mailFile) + " user@invalid.\n" + contents;
+        string actual = File.ReadAllText(MailOutPath);
+        Normalize(actual).Should().Be(expected, "mail-out does not contain the expected mail");
     }
 
     /// <summary>
@@ -375,11 +376,15 @@ public abstract class ShellTestBase : IDisposable
     // scripts required by the tests (Windows counterparts of ./mailer etc.)
     // =====================================================================
 
-    /// <summary>Windows counterpart of the 'mailer' shell script.</summary>
+    /// <summary>
+    /// Windows counterpart of the 'mailer' shell script:
+    /// writes "$*" (i.e. "-s subject address") to mail-out, then appends the
+    /// piped log body (stdin). 'findstr "^"' echoes the redirected stdin.
+    /// </summary>
     protected virtual string MailerScript => """
         @echo off
-        echo %* > mail-out
-        REM //me since mail behavior has changed  more >> mail-out
+        > mail-out echo %*
+        >> mail-out findstr "^"
         """;
 
     /// <summary>Windows counterpart of the 'compress' shell script.</summary>

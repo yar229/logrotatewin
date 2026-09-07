@@ -73,6 +73,7 @@ namespace LogRotate
         public string? Last { get; set; }
         public string? PreRemove { get; set; }
         public string? MailCmd { get; set; }
+        public bool MailAsScript { get; set; }
         public string? LogAddress { get; set; }
         public string? Extension { get; set; }
         public string? AddExtension { get; set; }
@@ -93,7 +94,10 @@ namespace LogRotate
         public long OlddirMode = Sentinel.NO_MODE;
         public long OlddirUid = Sentinel.NO_UID;
         public long OlddirGid = Sentinel.NO_GID;
+        
 
         public List<string> CompressOptions { get; } = new List<string>();
+
+        public List<string> UnCompressOptions { get; } = new List<string>();
     }
 }

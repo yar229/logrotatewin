@@ -12,6 +12,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class WeeklyWeekdayDirectiveTests : IntegrationTestBase
     {
+        public WeeklyWeekdayDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithWeeklySunday_ShouldParseSuccessfully()
         {

@@ -12,6 +12,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class ShredDirectiveTests : IntegrationTestBase
     {
+        public ShredDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithShred_ShouldDeleteFileAfterShredding()
         {

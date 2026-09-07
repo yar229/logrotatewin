@@ -7,14 +7,18 @@ namespace logrotate.Tests.Integration
     /// <summary>
     /// Integration tests for the createolddir and nocreateolddir directive functionality.
     ///
-    /// The createolddir directive (default behavior) automatically creates the olddir directory
+    /// The createolddir directive automatically creates the olddir directory
     /// if it doesn't exist when rotating logs.
     ///
-    /// The nocreateolddir directive prevents automatic creation of olddir, causing an error
+    /// The nocreateolddir (default behavior) directive prevents automatic creation of olddir, causing an error
     /// if the directory doesn't exist.
     /// </summary>
     public class CreateOldDirDirectiveTests : IntegrationTestBase
     {
+        public CreateOldDirDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithOldDirAndDefaultCreateOldDir_ShouldCreateDirectory()
         {

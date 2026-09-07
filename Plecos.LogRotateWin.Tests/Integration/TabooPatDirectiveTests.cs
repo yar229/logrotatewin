@@ -12,6 +12,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class TabooPatDirectiveTests : IntegrationTestBase
     {
+        public TabooPatDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void ProcessInclude_WithTabooPatAsteriskPattern_ShouldSkipMatchingFiles()
         {

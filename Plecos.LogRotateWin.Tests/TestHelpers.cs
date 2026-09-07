@@ -114,7 +114,7 @@ namespace logrotate.Tests
                     return false;
 
                 byte[] header = new byte[2];
-                fs.Read(header, 0, 2);
+                fs.ReadExactly(header, 0, 2);
 
                 // Gzip magic number: 0x1f 0x8b
                 return header[0] == 0x1f && header[1] == 0x8b;

@@ -7,9 +7,9 @@ using Op = LogRotate.Consts.ConfigSectionDirectives;
 namespace PostCsConvertation.Tests.Integration;
 
 [Trait("Category", "Integration")]
-public class MailTests : NewWaveIntegrationTestBase
+public class MailScriptTests : NewWaveIntegrationTestBase
 {
-    public MailTests(ITestOutputHelper output)
+    public MailScriptTests(ITestOutputHelper output)
         : base(output)
     {
     }
@@ -17,7 +17,7 @@ public class MailTests : NewWaveIntegrationTestBase
     private const string DefaultEmail = "yar229@home.loc";
 
     [Fact]
-    public void SimpleMailWithInplaceCmdParams_ShouldBePassed()
+    public void MailScriptWithInplaceCmdParams_ShouldBePassed()
     {
         var log = Runner.NewLog("log-a.log").Create();
         var markerMail = Runner.NewFile("marker-mail.txt");
@@ -36,13 +36,13 @@ public class MailTests : NewWaveIntegrationTestBase
                     .With(Op.Rotate, 1)
                     .With(Op.MailFirst)
                     .With(Op.Mail, DefaultEmail)
-                    .WithScript(Op.MailCmd, $"echo mail file %1 for %3 >> {markerMail}"))
+                    .WithScript(Op.MailScript, $"echo mail file %1 for %2 >> {markerMail}"))
                 .Create())
             .RunAndCheck();
     }
 
     [Fact]
-    public void SimpleMailWithEnviromentCmdParams_ShouldBePassed()
+    public void MailScriptWithEnviromentCmdParams_ShouldBePassed()
     {
         var log = Runner.NewLog("log-a.log").Create();
         var markerMail = Runner.NewFile("marker-mail.txt");
@@ -61,7 +61,34 @@ public class MailTests : NewWaveIntegrationTestBase
                     .With(Op.Rotate, 1)
                     .With(Op.MailFirst)
                     .With(Op.Mail, DefaultEmail)
-                    .WithScript(Op.MailCmd, $"echo mail file %{EnviromentVariables.Log}% for %{EnviromentVariables.MailTo}% >> {markerMail}"))
+                    .WithScript(Op.MailScript, $"echo mail file %{ScriptEnviromentVariables.Log}% for %{ScriptEnviromentVariables.MailTo}% >> {markerMail}"))
+                .Create())
+            .RunAndCheck();
+    }
+
+    [Fact]
+    public void GlobalMailScriptWithInplaceCmdParams_ShouldWorkForAll()
+    {
+        var log = Runner.NewLog("log-a.log").Create();
+        var markerMail = Runner.NewFile("marker-mail.txt");
+
+        Runner
+            .WithLog(log, l => l
+                .ShouldNotBe()
+                .ShouldBe(Ext(".1")))
+            .WithFile(markerMail, l => l
+                .ShouldBe()
+                .ShouldContain(DefaultEmail)
+                .ShouldContain($"{log}.1")
+                .ShouldNotContain(XPattern.AllLogs))
+            .WithConfig(c => c
+                .WithGlobalSection(s => s
+                    .WithScript(Op.MailScript, $"echo mail file %1 for %2 >> {markerMail}"))
+                .WithSection(XPattern.AllLogs, s => s
+                    .With(Op.Rotate, 1)
+                    .With(Op.MailFirst)
+                    .With(Op.Mail, DefaultEmail)
+                    .WithScript(Op.MailScript, $"echo mail file %1 for %2 >> {markerMail}"))
                 .Create())
             .RunAndCheck();
     }

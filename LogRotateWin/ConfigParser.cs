@@ -386,7 +386,7 @@ bool error = false;
             {
                 foreach (var c in path)
                 {
-                    if (!C.IsPrint(c) || C.IsBlank(c))
+                    if (!C.IsPrint(c)) // not bad on windows // || C.IsBlank(c))
                     {
                         Log.Message(MESS.ERROR, "{0}:{1} bad {2} path {3}\n",
                             configFile, lineNum, key, path);
@@ -458,6 +458,7 @@ bool error = false;
             to.Last = from.Last;
             to.PreRemove = from.PreRemove;
             to.MailCmd = from.MailCmd;
+            to.MailAsScript = from.MailAsScript;
             to.LogAddress = from.LogAddress;
             to.Extension = from.Extension;
             to.AddExtension = from.AddExtension;
@@ -503,6 +504,7 @@ to.CreateMode = from.CreateMode;
             target.Last = copy.Last;
             target.PreRemove = copy.PreRemove;
             target.MailCmd = copy.MailCmd;
+            target.MailAsScript = copy.MailAsScript;
             target.LogAddress = copy.LogAddress;
             target.Extension = copy.Extension;
             target.AddExtension = copy.AddExtension;
@@ -511,7 +513,7 @@ to.CreateMode = from.CreateMode;
             target.CompressExt = copy.CompressExt;
             target.Flags = copy.Flags;
             target.ShredCycles = copy.ShredCycles;
-target.CreateMode = copy.CreateMode;
+            target.CreateMode = copy.CreateMode;
             target.CreateUid = copy.CreateUid;
             target.CreateGid = copy.CreateGid;
             target.CreateOwnerSid = copy.CreateOwnerSid;
@@ -1250,11 +1252,11 @@ string? olddirOwnerSid = null;
                                 scriptDest = Op.Preremove;
                                 state = STATE_LOAD_SCRIPT;
                             }
-                            else if (key == Op.MailCmd)
+                            else if (key == Op.MailScript)
                             {
                                 newlog.MailCmd = null;
                                 scriptStart = pos;
-                                scriptDest = Op.MailCmd;
+                                scriptDest = Op.MailScript;
                                 state = STATE_LOAD_SCRIPT;
                             }
                             else if (key == Op.TabooExt)
@@ -1517,7 +1519,36 @@ string? olddirOwnerSid = null;
                                     goto error;
                                 }
                                 newlog.CompressOptions.AddRange(parsed);
-                                Log.Message(MESS.DEBUG, "compress_options is now {0}\n", options);
+                                Log.Message(MESS.DEBUG, "{0} is now {1}\n", Op.CompressOptions, options);
+                            }
+                            else if (key == Op.UnCompressOptions)
+                            {
+                                newlog.UnCompressOptions.Clear();
+                                string? options = IsolateLine(buf, ref pos, length);
+                                if (options == null)
+                                {
+                                    if (newlog != defConfig)
+                                    {
+                                        state = STATE_ERROR;
+                                        goto next_state;
+                                    }
+                                    goto error;
+                                }
+                                var parsed = ArgvParser.Parse(options);
+                                if (parsed == null)
+                                {
+                                    Log.Message(MESS.ERROR,
+                                        "{0}:{1} invalid uncompression options\n",
+                                        configFile, lineNum);
+                                    if (newlog != defConfig)
+                                    {
+                                        state = STATE_ERROR;
+                                        goto next_state;
+                                    }
+                                    goto error;
+                                }
+                                newlog.UnCompressOptions.AddRange(parsed);
+                                Log.Message(MESS.DEBUG, "{0} is now {1}\n", Op.UnCompressOptions, options);
                             }
                             else if (key == Op.CompressExt)
                             {
@@ -1849,7 +1880,7 @@ string? olddirOwnerSid = null;
                                     case Op.PostRotate: newlog.Post = script; break;
                                     case Op.LastAction: newlog.Last = script; break;
                                     case Op.Preremove: newlog.PreRemove = script; break;
-                                    case Op.MailCmd: newlog.MailCmd = script; break;
+                                    case Op.MailScript: newlog.MailCmd = script; newlog.MailAsScript = true; break;
                                 }
                                 scriptDest = null;
                                 scriptStart = -1;
@@ -1877,7 +1908,7 @@ string? olddirOwnerSid = null;
                             if (key == null)
                                 continue;
                             if (key == Op.PostRotate || key == Op.PreRotate || key == Op.FirstAction
-                                || key == Op.LastAction || key == Op.Preremove || key == Op.MailCmd)
+                                || key == Op.LastAction || key == Op.Preremove || key == Op.MailScript)
                             {
                                 state = STATE_LOAD_SCRIPT | STATE_SKIP_CONFIG;
                             }
@@ -1904,7 +1935,7 @@ string? olddirOwnerSid = null;
             if (scriptStart != -1)
             {
                 Log.Message(MESS.ERROR,
-                    "{0}:prerotate, postrotate or preremove without endscript\n",
+                    $"{0}:{Op.PreRotate}, {Op.PostRotate}, {Op.Preremove} or {Op.MailScript} without endscript\n",
                     configFile);
                 goto error;
             }

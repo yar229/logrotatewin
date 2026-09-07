@@ -12,11 +12,9 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class IncludeDirectiveTests : IntegrationTestBase
     {
-        private readonly ITestOutputHelper _output;
-
         public IncludeDirectiveTests(ITestOutputHelper output)
+            : base(output) 
         {
-            _output = output;
         }
 
         [Fact]
@@ -47,13 +45,13 @@ namespace logrotate.Tests.Integration
             try
             {
                 // Act - Run with verbose to capture output
-                var (exitCode, stdout, stderr) = RunLogRotateWithOutput("-s", stateFile, "-v", "-f", configFile);
+                var exitCode = RunLogRotate("-s", stateFile, "-v", "-f", configFile);
 
-                _output.WriteLine("=== STDOUT ===");
-                _output.WriteLine(stdout);
-                _output.WriteLine("=== STDERR ===");
-                _output.WriteLine(stderr);
-                _output.WriteLine($"=== EXIT CODE: {exitCode} ===");
+                //Output.WriteLine("=== STDOUT ===");
+                //Output.WriteLine(stdout);
+                //Output.WriteLine("=== STDERR ===");
+                //Output.WriteLine(stderr);
+                //Output.WriteLine($"=== EXIT CODE: {exitCode} ===");
 
                 // Assert
                 File.Exists($"{logFile}.1").Should().BeTrue("included config should cause log rotation");

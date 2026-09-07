@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
+using Xunit;
 
 namespace logrotate.Tests.Integration
 {
@@ -15,8 +17,12 @@ namespace logrotate.Tests.Integration
 
         private readonly string _exePath;
 
-        protected IntegrationTestBase()
+        public ITestOutputHelper Output { get; private set; }
+
+        protected IntegrationTestBase(ITestOutputHelper output)
         {   
+            Output = output;
+
             if (!string.IsNullOrEmpty(BaseTestDir))
             {
                 if (!Directory.Exists(BaseTestDir))
@@ -40,6 +46,16 @@ namespace logrotate.Tests.Integration
 
         public int RunLogRotate(params string[] args)
         {
+            // If no -s/--state was given, the exe falls back to the shared
+            // default state file (%LOCALAPPDATA%\logrotate\status). Tests run
+            // in parallel, so several instances would race over that single
+            // file + its non-blocking byte-range lock and randomly fail.
+            // Always isolate each invocation behind a per-test state file.
+            if (!args.Contains("-s") && !args.Contains("--state"))
+            {
+                args = args.Concat(new[] { "-s", Path.Combine(TestDir, "state") }).ToArray();
+            }
+
             ProcessStartInfo psi = new ProcessStartInfo();
             psi.FileName = _exePath;
             psi.Arguments = string.Join(" ", args);
@@ -95,6 +111,10 @@ namespace logrotate.Tests.Integration
                 process.CancelErrorRead();
 
                 Log = sbLog.ToString();
+
+                Output.WriteLine("Execution Log:");
+                Output.WriteLine(Log);
+                Output.WriteLine($"ExitCode: {process.ExitCode}");
 
                 return process.ExitCode;
             }

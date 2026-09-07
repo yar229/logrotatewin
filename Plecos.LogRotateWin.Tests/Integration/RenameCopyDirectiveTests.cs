@@ -19,6 +19,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class RenameCopyDirectiveTests : IntegrationTestBase
     {
+        public RenameCopyDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithRenameCopy_ShouldUseTemporaryFile()
         {
