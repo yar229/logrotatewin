@@ -29,6 +29,18 @@ namespace LogRotate
 
         public static int Main(string[] args)
         {
+            try
+            {
+                return Run(args);
+            }
+            finally
+            {
+                ProcessRunner.CleanupScriptCache();
+            }
+        }
+
+        private static int Run(string[] args)
+        {
             bool force = false;
             bool skipStateLock = false;
             bool waitForStateLock = false;

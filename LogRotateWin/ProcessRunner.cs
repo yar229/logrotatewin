@@ -27,6 +27,16 @@ namespace LogRotate
     /// </summary>
     public static class ProcessRunner
     {
+        private static readonly object _scriptFileLock = new object();
+
+        /// <summary>
+        /// Cache of script content -> temp .cmd file path. Scripts are written
+        /// once and reused for identical content; all created files are removed
+        /// by CleanupScriptCache() at program shutdown.
+        /// </summary>
+        private static readonly Dictionary<string, string> _scriptFileCache =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+
         /// <summary>
         /// Executes an executable with arguments. Optionally captures stderr
         /// and returns it in the result instead of forwarding to console.
@@ -88,22 +98,69 @@ namespace LogRotate
             return result;
         }
 
+        /// <summary>
+        /// Deletes all cached temp script files. Called once at program exit.
+        /// </summary>
+        public static void CleanupScriptCache()
+        {
+            lock (_scriptFileLock)
+            {
+                if (_scriptFileCache.Any())
+                {
+                    foreach (var path in _scriptFileCache.Values)
+                    {
+                        Log.Message(MESS.DEBUG, "clearing script files cache\n");
+                        try
+                        {
+                            File.Delete(path);
+                        }
+                        catch
+                        {
+                            Log.Message(MESS.ERROR, "cannot delete temp script file: {0}\n", path);
+                        }
+                    }
+                    _scriptFileCache.Clear();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns a path to a .cmd file containing the given script. Files are
+        /// cached by script content: identical scripts reuse the same file.
+        /// Returns null if the file cannot be created.
+        /// </summary>
+        private static string? GetOrCreateScriptFile(string script)
+        {
+            lock (_scriptFileLock)
+            {
+                if (_scriptFileCache.TryGetValue(script, out var cached))
+                    return cached;
+
+                string tempScriptFilepath = string.Empty;
+                try
+                {
+                    string temp_path_orig = Path.GetTempFileName();
+                    tempScriptFilepath = Path.ChangeExtension(temp_path_orig, "cmd");
+                    File.Delete(temp_path_orig);
+
+                    File.WriteAllText(tempScriptFilepath, script);
+                }
+                catch (Exception ex)
+                {
+                    Log.Message(MESS.ERROR, "cannot create temp script file {0}: {1}\n", tempScriptFilepath, ex.Message);
+                    return null;
+                }
+
+                _scriptFileCache[script] = tempScriptFilepath;
+                return tempScriptFilepath;
+            }
+        }
+
         public static int RunScript(string script, params (string EnvVar, string Value)[] additionalParams)
         {
-            string tempScriptFilepath = string.Empty;
-            try
-            {
-                string temp_path_orig = Path.GetTempFileName();
-                tempScriptFilepath = Path.ChangeExtension(temp_path_orig, "cmd");
-                File.Delete(temp_path_orig);
-
-                File.WriteAllText(tempScriptFilepath, script);
-            }
-            catch (Exception ex)
-            {
-                Log.Message(MESS.ERROR, "cannot create temp script file {0}: {1}\n", tempScriptFilepath, ex.Message);
+            string? tempScriptFilepath = GetOrCreateScriptFile(script);
+            if (tempScriptFilepath == null)
                 return 1;
-            }
 
             string cmd = Environment.GetEnvironmentVariable("COMSPEC")
                     ?? Path.Combine(Environment.SystemDirectory, "cmd.exe");
