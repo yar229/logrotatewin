@@ -8,6 +8,10 @@ namespace logrotate.Tests.Integration
     [Trait("Category", "Integration")]
     public class ConfigParsingTests : IntegrationTestBase
     {
+        public ConfigParsingTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void ParseConfig_WithComments_ShouldIgnoreCommentLines()
         {

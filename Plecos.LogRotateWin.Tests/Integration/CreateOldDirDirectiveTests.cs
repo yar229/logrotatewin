@@ -15,6 +15,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class CreateOldDirDirectiveTests : IntegrationTestBase
     {
+        public CreateOldDirDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithOldDirAndDefaultCreateOldDir_ShouldCreateDirectory()
         {

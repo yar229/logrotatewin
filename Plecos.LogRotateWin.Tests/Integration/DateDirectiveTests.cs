@@ -16,6 +16,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class DateDirectiveTests : IntegrationTestBase
     {
+        public DateDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithNoDateExt_ShouldUseNumberedRotation()
         {

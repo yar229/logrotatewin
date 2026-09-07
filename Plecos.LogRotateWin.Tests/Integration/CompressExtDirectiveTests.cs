@@ -12,6 +12,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class CompressExtDirectiveTests : IntegrationTestBase
     {
+        public CompressExtDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithDefaultCompressExt_ShouldUseGzExtension()
         {

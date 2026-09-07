@@ -1,3 +1,4 @@
+﻿using LogRotate.Consts;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -979,12 +980,12 @@ namespace LogRotate
                         UseShellExecute = false,
                         CreateNoWindow = true,
                         RedirectStandardInput = true,
-                        RedirectStandardOutput = false,
+                        RedirectStandardOutput = true,
                         RedirectStandardError = true,
                     };
                     foreach (var arg in log.CompressOptions)
                         psi.ArgumentList.Add(arg);
-                    psi.Environment["LOGROTATE_COMPRESSED_FILENAME"] = name;
+                    psi.Environment[EnviromentVariables.CompressedFilename] = name;
 
                     try
                     {
@@ -994,6 +995,9 @@ namespace LogRotate
                         var stdoutTask = TaskHelper.CopyAsync(inFile, proc.StandardInput.BaseStream);
                         stdoutTask.GetAwaiter().GetResult();
                         proc.StandardInput.Close();
+
+                        proc.StandardOutput.BaseStream.CopyTo(outFile);
+
                         proc.WaitForExit();
 
                         string stderr = stderrTask.GetAwaiter().GetResult();

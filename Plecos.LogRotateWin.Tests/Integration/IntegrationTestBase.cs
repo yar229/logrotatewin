@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using Xunit;
 
 namespace logrotate.Tests.Integration
 {
@@ -15,8 +16,12 @@ namespace logrotate.Tests.Integration
 
         private readonly string _exePath;
 
-        protected IntegrationTestBase()
+        public ITestOutputHelper Output { get; private set; }
+
+        protected IntegrationTestBase(ITestOutputHelper output)
         {   
+            Output = output;
+
             if (!string.IsNullOrEmpty(BaseTestDir))
             {
                 if (!Directory.Exists(BaseTestDir))
@@ -95,6 +100,10 @@ namespace logrotate.Tests.Integration
                 process.CancelErrorRead();
 
                 Log = sbLog.ToString();
+
+                Output.WriteLine("Execution Log:");
+                Output.WriteLine(Log);
+                Output.WriteLine($"ExitCode: {process.ExitCode}");
 
                 return process.ExitCode;
             }

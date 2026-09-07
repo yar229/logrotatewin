@@ -8,6 +8,10 @@ namespace logrotate.Tests.Integration
     [Trait("Category", "Integration")]
     public class EmailConfigurationTests : IntegrationTestBase
     {
+        public EmailConfigurationTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void ParseConfig_WithMailDirective_ShouldParseEmailAddress()
         {
@@ -67,8 +71,7 @@ namespace logrotate.Tests.Integration
     mail test@example.com
     maillast
     compress
-    smtpserver smtp.example.com
-    smtpport 587
+    create
 }}
 ";
             string configFile = TestHelpers.CreateTempConfigFile(configContent);
@@ -92,46 +95,48 @@ namespace logrotate.Tests.Integration
             }
         }
 
-//        [Fact]
-//        public void ParseConfig_WithMailFirstDirective_ShouldParseCorrectly()
-//        {
-//            // 'mailfirst' means email the log file BEFORE rotation
-//            // The original uncompressed file is attached to the email
+        [Fact]
+        public void ParseConfig_WithMailFirstDirective_ShouldParseCorrectly()
+        {
+            // 'mailfirst' means email the log file BEFORE rotation
+            // The original uncompressed file is attached to the email
 
-//            // Arrange
-//            string logFile = Path.Combine(TestDir, "test.log");
-//            File.WriteAllText(logFile, "Test log content\n");
+            // Arrange
+            string logFile = Path.Combine(TestDir, "test.log");
+            File.WriteAllText(logFile, "Test log content\n");
 
-//            string stateFile = Path.Combine(TestDir, "state.txt");
-//            string configContent = $@"
-//""{logFile}"" {{
-//    rotate 2
-//    mail test@example.com
-//    mailfirst
-//    compress
-//    smtpserver smtp.example.com
-//    smtpport 587
-//}}
-//";
-//            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+            string stateFile = Path.Combine(TestDir, "state.txt");
+            string configContent = $@"
+""{logFile}"" {{
+    rotate 2
+    mail test@example.com
+    mailfirst
+    compress
+}}
+";
+            string configFile = TestHelpers.CreateTempConfigFile(configContent);
 
-//            try
-//            {
-//                // Act
-//                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+            try
+            {
+                // Act
+                int exitCode = RunLogRotate(
+                    "-s", stateFile, 
+                    "-f", 
+                    "--mail", "\"\"",  
+                    configFile);
 
-//                // Assert
-//                exitCode.Should().Match(x => x == 0 || x == 4,
-//                    "config with mailfirst directive should parse successfully");
+                // Assert
+                exitCode.Should().Match(x => x == 0 || x == 4,
+                    "config with mailfirst directive should parse successfully");
 
-//                // File should still be rotated and compressed
-//                File.Exists($"{logFile}.1.gz").Should().BeTrue("file should be rotated and compressed");
-//            }
-//            finally
-//            {
-//                TestHelpers.CleanupPath(configFile);
-//            }
-//        }
+                // File should still be rotated and compressed
+                File.Exists($"{logFile}.1.gz").Should().BeTrue("file should be rotated and compressed");
+            }
+            finally
+            {
+                TestHelpers.CleanupPath(configFile);
+            }
+        }
 
         [Fact]
         public void ParseConfig_WithNoMailDirective_ShouldDisableEmail()
@@ -167,7 +172,7 @@ namespace logrotate.Tests.Integration
             }
         }
 
-        [Fact]
+        [Fact(Skip = "plecos.logrotate custom parameters")]
         public void ParseConfig_WithSMTPSSL_ShouldParseCorrectly()
         {
             // Tests SSL/TLS configuration for SMTP

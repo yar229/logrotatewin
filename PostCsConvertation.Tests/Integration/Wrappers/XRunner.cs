@@ -44,8 +44,8 @@ internal class XRunner
 
         _container.Output.WriteLine($"Files after run:\r\n {ListDirectory(_container.TestDir)}");
 
-        _container.Output.WriteLine("Execution Log:");
-        _container.Output.WriteLine(_container.Log);
+        //_container.Output.WriteLine("Execution Log:");
+        //_container.Output.WriteLine(_container.Log);
         return this;
     }
     public XRunner Check()

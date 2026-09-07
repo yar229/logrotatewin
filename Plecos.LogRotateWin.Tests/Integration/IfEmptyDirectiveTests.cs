@@ -11,6 +11,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class IfEmptyDirectiveTests : IntegrationTestBase
     {
+        public IfEmptyDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithIfEmpty_ShouldRotateEmptyFiles()
         {

@@ -1904,7 +1904,7 @@ string? olddirOwnerSid = null;
             if (scriptStart != -1)
             {
                 Log.Message(MESS.ERROR,
-                    "{0}:prerotate, postrotate or preremove without endscript\n",
+                    $"{0}:{Op.PreRotate}, {Op.PostRotate}, {Op.Preremove} or {Op.MailCmd} without endscript\n",
                     configFile);
                 goto error;
             }

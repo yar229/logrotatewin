@@ -11,6 +11,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class IgnoreDuplicatesDirectiveTests : IntegrationTestBase
     {
+        public IgnoreDuplicatesDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithIgnoreDuplicatesAndDuplicatePaths_ShouldProcessOnce()
         {

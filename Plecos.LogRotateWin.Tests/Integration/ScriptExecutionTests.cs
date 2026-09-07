@@ -8,6 +8,10 @@ namespace logrotate.Tests.Integration
     [Trait("Category", "Integration")]
     public class ScriptExecutionTests : IntegrationTestBase
     {
+        public ScriptExecutionTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithPreRotateScript_ShouldExecuteBeforeRotation()
         {

@@ -8,6 +8,10 @@ namespace logrotate.Tests.Integration
     [Trait("Category", "Integration")]
     public class CompressionIntegrationTests : IntegrationTestBase
     {
+        public CompressionIntegrationTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithCompress_ShouldCompressRotatedFile()
         {

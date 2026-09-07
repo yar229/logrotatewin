@@ -9,6 +9,10 @@ namespace logrotate.Tests.Integration
     [Trait("Category", "Integration")]
     public class AdvancedRotationTests : IntegrationTestBase
     {
+        public AdvancedRotationTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithCopyDirective_ShouldCopyInsteadOfMove()
         {

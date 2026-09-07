@@ -15,8 +15,8 @@ namespace logrotate.Tests.Integration
         private readonly ITestOutputHelper _output;
 
         public IncludeDirectiveTests(ITestOutputHelper output)
+            : base(output) 
         {
-            _output = output;
         }
 
         [Fact]

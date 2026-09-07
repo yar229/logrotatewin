@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using System;
 using System.IO;
 using System.IO.Compression;
 using Xunit;
@@ -11,17 +12,20 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class CompressionCommandDirectiveTests : IntegrationTestBase
     {
+        public CompressionCommandDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithGzipCompressCmd_ShouldUseExternalGzip()
         {
             // Tests using external gzip command (if available)
             // This tests the compresscmd directive with a standard compression tool
 
-            // Skip if gzip is not available on the system
             if (!IsCommandAvailable("gzip"))
             {
-                // Test passes by default if gzip is not installed
-                return;
+                Assert.Skip("Skiped cause gzip is not available on the system");
+                //return;
             }
 
             // Arrange
@@ -47,12 +51,13 @@ namespace logrotate.Tests.Integration
 
                 // Assert - Should create .gz file using external gzip
                 File.Exists($"{logFile}.1.gz").Should().BeTrue("external gzip should create .1.gz file");
+                new FileInfo($"{logFile}.1.gz").Length.Should().BeGreaterThan(2, "external gzip should create not empty .1.gz file");
 
                 // Verify it's a valid gzip file by checking magic bytes
                 byte[] magicBytes = new byte[2];
                 using (FileStream fs = File.OpenRead($"{logFile}.1.gz"))
                 {
-                    fs.Read(magicBytes, 0, 2);
+                    fs.ReadExactly(magicBytes, 0, 2);
                 }
                 magicBytes[0].Should().Be(0x1F, "gzip magic byte 1 should be 0x1F");
                 magicBytes[1].Should().Be(0x8B, "gzip magic byte 2 should be 0x8B");
@@ -72,7 +77,8 @@ namespace logrotate.Tests.Integration
             // Skip if gzip is not available
             if (!IsCommandAvailable("gzip"))
             {
-                return;
+                Assert.Skip("Skiped cause gzip is not available on the system");
+                //return;
             }
 
             // Arrange
@@ -99,6 +105,7 @@ namespace logrotate.Tests.Integration
 
                 // Assert - File should be compressed
                 File.Exists($"{logFile}.1.gz").Should().BeTrue("should create compressed file with custom options");
+                new FileInfo($"{logFile}.1.gz").Length.Should().BeGreaterThan(2, "external gzip should create not empty .1.gz file");
             }
             finally
             {
@@ -133,12 +140,13 @@ namespace logrotate.Tests.Integration
 
                 // Assert - Should use built-in GZipStream
                 File.Exists($"{logFile}.1.gz").Should().BeTrue("built-in compression should create .gz file");
+                new FileInfo($"{logFile}.1.gz").Length.Should().BeGreaterThan(2, "built-in compression gzip should create not empty .1.gz file");
 
                 // Verify it's a valid gzip file
                 byte[] magicBytes = new byte[2];
                 using (FileStream fs = File.OpenRead($"{logFile}.1.gz"))
                 {
-                    fs.Read(magicBytes, 0, 2);
+                    fs.ReadExactly(magicBytes, 0, 2);
                 }
                 magicBytes[0].Should().Be(0x1F);
                 magicBytes[1].Should().Be(0x8B);
@@ -167,7 +175,8 @@ namespace logrotate.Tests.Integration
             // Skip if gzip is not available
             if (!IsCommandAvailable("gzip"))
             {
-                return;
+                Assert.Skip("Skiped cause gzip is not available on the system");
+                //return;
             }
 
             // Arrange
@@ -212,7 +221,7 @@ namespace logrotate.Tests.Integration
 
             string configContent = $@"
 ""{logFile}"" {{
-    compresscmd /usr/bin/gzip
+    compresscmd gzip
     rotate 1
 }}
 ";

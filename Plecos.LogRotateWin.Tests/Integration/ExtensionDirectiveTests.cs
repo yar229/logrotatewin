@@ -17,6 +17,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class ExtensionDirectiveTests : IntegrationTestBase
     {
+        public ExtensionDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithExtension_ShouldPreserveExtensionWithDateExt()
         {

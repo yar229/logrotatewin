@@ -11,6 +11,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class NoDelayCompressDirectiveTests : IntegrationTestBase
     {
+        public NoDelayCompressDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithNoDelayCompress_ShouldCompressImmediately()
         {

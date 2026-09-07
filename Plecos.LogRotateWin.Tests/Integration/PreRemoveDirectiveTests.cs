@@ -13,6 +13,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class PreRemoveDirectiveTests : IntegrationTestBase
     {
+        public PreRemoveDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithPreRemoveScript_ShouldExecuteBeforeDeletion()
         {

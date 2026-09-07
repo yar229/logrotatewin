@@ -8,6 +8,10 @@ namespace logrotate.Tests.Integration
     [Trait("Category", "Integration")]
     public class DateBasedRotationTests : IntegrationTestBase
     {
+        public DateBasedRotationTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void RotateLog_WithDaily_ShouldRotateWhenLastRotationOverOneDayAgo()
         {

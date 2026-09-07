@@ -11,6 +11,10 @@ namespace logrotate.Tests.Integration
     /// </summary>
     public class TabooExtDirectiveTests : IntegrationTestBase
     {
+        public TabooExtDirectiveTests(ITestOutputHelper output) : base(output)
+        {
+        }
+
         [Fact]
         public void Include_WithDefaultTabooExt_ShouldSkipSwpFiles()
         {
