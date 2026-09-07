@@ -1,0 +1,45 @@
+name: dotnet
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set version from tag
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          "VERSION=$version" >> $env:GITHUB_ENV
+          "PROJECT_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Restore
+        run: dotnet restore LogRotateWin.slnx
+
+      - name: Build
+        run: dotnet build LogRotateWin.slnx --configuration Release --no-restore -p:Version=$env:PROJECT_VERSION
+
+      - name: Publish
+        run: dotnet publish LogRotateWin/LogRotateWin.csproj --configuration Release --no-build --output publish
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: logrotatewin-${{ env.VERSION }}
+          path: publish/
