@@ -169,5 +169,75 @@ namespace logrotate.Tests.Integration
                 TestHelpers.CleanupPath(configFile);
             }
         }
+
+        [Fact]
+        public void RotateLog_WithSuPasswd_ShouldNotWarnAboutCurrentAccount()
+        {
+            // Arrange - a different su account with supasswd provided: scripts
+            // may run impersonated, so the parse-time warning must be absent.
+            string logFile = Path.Combine(TestDir, "test.log");
+            File.WriteAllText(logFile, "Log content\n");
+
+            string stateFile = Path.Combine(TestDir, "state.txt");
+            string configContent = $@"
+""{logFile}"" {{
+    rotate 2
+    daily
+    create 0644
+    su SYSTEM Users
+    supasswd not-a-real-password
+}}
+";
+            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+
+            try
+            {
+                // Act
+                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+
+                // Assert
+                exitCode.Should().Be(0, "rotation should proceed even if the logon fails");
+                Log.Should().NotMatch("will run under the current account",
+                    "with supasswd the parse-time 'cannot switch users' warning must be suppressed");
+            }
+            finally
+            {
+                TestHelpers.CleanupPath(configFile);
+            }
+        }
+
+        [Fact]
+        public void RotateLog_WithSupasswdButNoSu_ShouldWarnThatItIsIgnored()
+        {
+            // Arrange
+            string logFile = Path.Combine(TestDir, "test.log");
+            File.WriteAllText(logFile, "Log content\n");
+
+            string stateFile = Path.Combine(TestDir, "state.txt");
+            string configContent = $@"
+""{logFile}"" {{
+    rotate 2
+    daily
+    create 0644
+    supasswd not-a-real-password
+}}
+";
+            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+
+            try
+            {
+                // Act
+                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+
+                // Assert
+                exitCode.Should().Be(0);
+                Log.Should().MatchRegex("supasswd is ignored because 'su' is not set",
+                    "a supasswd without su is meaningless and must be reported");
+            }
+            finally
+            {
+                TestHelpers.CleanupPath(configFile);
+            }
+        }
     }
 }

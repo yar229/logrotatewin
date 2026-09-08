@@ -86,4 +86,5 @@ public static class ConfigSectionDirectives
     //custom non-standart directives
     public const string MailScript = "mailscript";
     public const string UnCompressOptions = "uncompressoptions";
+    public const string SuPasswd = "supasswd";
 }

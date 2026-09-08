@@ -93,6 +93,7 @@ namespace LogRotate
         public long SuGid = Sentinel.NO_GID;
         public string? SuOwnerSid;
         public string? SuGroupSid;
+        public string? SuPassword;
         public long OlddirMode = Sentinel.NO_MODE;
         public long OlddirUid = Sentinel.NO_UID;
         public long OlddirGid = Sentinel.NO_GID;

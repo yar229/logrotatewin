@@ -237,6 +237,11 @@ private static bool ResolveUid(string userName, out long uid, out string? sid)
             if (log.SuUid == Sentinel.NO_UID)
                 return;
 
+            /* with supasswd, scripts can be run as the su user via
+             * impersonation, so no warning is needed here */
+            if (log.SuOwnerSid != null && !string.IsNullOrEmpty(log.SuPassword))
+                return;
+
             if (log.SuOwnerSid == null)
             {
                 /* numeric/root su user: there is no Windows account to compare */
@@ -521,6 +526,7 @@ to.CreateMode = from.CreateMode;
             to.SuGid = from.SuGid;
             to.SuOwnerSid = from.SuOwnerSid;
             to.SuGroupSid = from.SuGroupSid;
+            to.SuPassword = from.SuPassword;
             to.OlddirMode = from.OlddirMode;
             to.OlddirUid = from.OlddirUid;
             to.OlddirGid = from.OlddirGid;
@@ -569,6 +575,7 @@ to.CreateMode = from.CreateMode;
             target.SuGid = copy.SuGid;
             target.SuOwnerSid = copy.SuOwnerSid;
             target.SuGroupSid = copy.SuGroupSid;
+            target.SuPassword = copy.SuPassword;
             target.OlddirMode = copy.OlddirMode;
             target.OlddirUid = copy.OlddirUid;
             target.OlddirGid = copy.OlddirGid;
@@ -1089,7 +1096,17 @@ long tmpMode = Sentinel.NO_MODE;
                                 }
                                 newlog.Flags |= LogFlags.Su;
 
-                                CheckSuIdentity(configFile, lineNum, newlog);
+                                /* for a section, the identity check runs when the
+                                 * section closes (supasswd may come after su) */
+                                if (newlog == defConfig)
+                                    CheckSuIdentity(configFile, lineNum, newlog);
+                            }
+                            else if (key == Op.SuPasswd)
+                            {
+                                key = IsolateLine(buf, ref pos, length);
+                                if (key == null)
+                                    continue;
+                                newlog.SuPassword = key;
                             }
                             else if (key == Op.Create)
                             {
@@ -1788,6 +1805,17 @@ long tmpMode = Sentinel.NO_MODE;
                                 if ((newlog.Flags & LogFlags.MissingOk) == 0)
                                     goto error;
                             }
+
+                            if (newlog.SuPassword != null
+                                    && (newlog.Flags & LogFlags.Su) == 0)
+                            {
+                                Log.Message(MESS.WARN,
+                                    "{0}:{1}: supasswd is ignored because 'su' is not set\n",
+                                    configFile, lineNum);
+                            }
+
+                            if (newlog != defConfig && newlog.SuPassword == null)
+                                CheckSuIdentity(configFile, lineNum, newlog);
 
                             if (newlog.OldDir != null)
                             {

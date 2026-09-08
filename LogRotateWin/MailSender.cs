@@ -20,10 +20,12 @@ internal static class MailSender
 
         if (log.MailAsScript)
         {
-            var result = ProcessRunner.RunScript(mailCommand, 
-                (ScriptEnviromentVariables.Log, mailFilename), 
-                (ScriptEnviromentVariables.MailTo, log.LogAddress));
-            return result;
+            var envs = new (string EnvVar, string Value)[]
+            {
+                (ScriptEnviromentVariables.Log, mailFilename),
+                (ScriptEnviromentVariables.MailTo, log.LogAddress!)
+            };
+            return Impersonation.Run(log, () => ProcessRunner.RunScript(mailCommand, envs));
         }
 
         /* The port never relies on external gzip/gunzip: compression is done
