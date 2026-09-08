@@ -2081,9 +2081,13 @@ hasErrors = CopyTruncate(log.Files[logNum], rotNames.FinalName!,
                 return 0;
             }
             //return ProcessRunner.RunScript(script, logfn, logrotfn);
-            return ProcessRunner.RunScript(script,
+            var envs = new (string EnvVar, string Value)[]
+            {
                 (ScriptEnviromentVariables.Log, logfn),
-                (ScriptEnviromentVariables.LogRotated, logrotfn));
+                (ScriptEnviromentVariables.LogRotated, logrotfn)
+            };
+            return Impersonation.Run(log, (dir, account) =>
+                ProcessRunner.RunScript(script, dir, account, envs));
         }
 
         // =================================================================
