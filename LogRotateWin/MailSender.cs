@@ -25,7 +25,8 @@ internal static class MailSender
                 (ScriptEnviromentVariables.Log, mailFilename),
                 (ScriptEnviromentVariables.MailTo, log.LogAddress!)
             };
-            return Impersonation.Run(log, () => ProcessRunner.RunScript(mailCommand, envs));
+            return Impersonation.Run(log, (dir, account) =>
+                ProcessRunner.RunScript(mailCommand, dir, account, envs));
         }
 
         /* The port never relies on external gzip/gunzip: compression is done

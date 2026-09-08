@@ -239,5 +239,39 @@ namespace logrotate.Tests.Integration
                 TestHelpers.CleanupPath(configFile);
             }
         }
+    [Fact]
+        public void RotateLog_WithSupasswdContainingSpecialChars_ShouldParseAndNotFail()
+        {
+            // Arrange - the password token must keep '$', '^', ')', ';' etc.
+            // intact (the value spans the rest of the line, leading blanks skipped).
+            string logFile = Path.Combine(TestDir, "test.log");
+            File.WriteAllText(logFile, "Log content\n");
+
+            string stateFile = Path.Combine(TestDir, "state.txt");
+            string configContent = $@"
+""{logFile}"" {{
+    rotate 2
+    daily
+    create 0644
+    su {Environment.UserName} Users
+    supasswd sdKB6^9Xne)291;mM1
+}}
+";
+            string configFile = TestHelpers.CreateTempConfigFile(configContent);
+
+            try
+            {
+                // Act
+                int exitCode = RunLogRotate("-s", stateFile, "-f", configFile);
+
+                // Assert
+                exitCode.Should().Be(0);
+                Log.Should().NotContain("# error", "a specially-encoded password must not break parsing");
+            }
+            finally
+            {
+                TestHelpers.CleanupPath(configFile);
+            }
+        }
     }
 }

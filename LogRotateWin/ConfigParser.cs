@@ -1103,7 +1103,7 @@ long tmpMode = Sentinel.NO_MODE;
                             }
                             else if (key == Op.SuPasswd)
                             {
-                                key = IsolateLine(buf, ref pos, length);
+                                key = IsolateValue(configFile, lineNum, key, buf, ref pos, length);
                                 if (key == null)
                                     continue;
                                 newlog.SuPassword = key;
