@@ -107,9 +107,9 @@ namespace LogRotate
             {
                 if (_scriptFileCache.Any())
                 {
+                    Log.Message(MESS.DEBUG, "clearing script files cache\n");
                     foreach (var path in _scriptFileCache.Values)
                     {
-                        Log.Message(MESS.DEBUG, "clearing script files cache\n");
                         try
                         {
                             File.Delete(path);

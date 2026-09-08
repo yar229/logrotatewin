@@ -1068,7 +1068,7 @@ long tmpMode = Sentinel.NO_MODE;
                                 if (key == null)
                                     continue;
 
-string? olddirOwnerSid = null;
+                                string? olddirOwnerSid = null;
                                 string? olddirGroupSid = null;
                                 bool err = ReadModeUidGid(configFile, lineNum, Op.CreateOldDir, key,
                                     ref newlog.OlddirMode, ref newlog.OlddirUid, ref newlog.OlddirGid,
