@@ -227,6 +227,51 @@ private static bool ResolveUid(string userName, out long uid, out string? sid)
         }
 
         /// <summary>
+        /// Warns when 'su' names an account different from the one the process
+        /// runs under: unlike Linux, Windows cannot switch the effective user
+        /// (there is no setuid()), so scripts will keep running under the
+        /// current account.
+        /// </summary>
+        private static void CheckSuIdentity(string configFile, int lineNum, LogInfo log)
+        {
+            if (log.SuUid == Sentinel.NO_UID)
+                return;
+
+            if (log.SuOwnerSid == null)
+            {
+                /* numeric/root su user: there is no Windows account to compare */
+                Log.Message(MESS.WARN,
+                    "{0}:{1}: cannot verify the 'su' user {2} against a Windows account; "
+                    + $"scripts ({Op.PreRotate}, {Op.PostRotate}, {Op.FirstAction}, {Op.LastAction}, {Op.Preremove}, {Op.MailScript}) "
+                    + "will run under the current account ('su' cannot switch "
+                    + "users on Windows)\n",
+                    configFile, lineNum, log.SuUid);
+                return;
+            }
+
+            var suSid = new SecurityIdentifier(log.SuOwnerSid);
+            SecurityIdentifier? currentSid = null;
+            try
+            {
+                currentSid = WindowsIdentity.GetCurrent().User;
+            }
+            catch (Exception)
+            {
+                /* account could not be determined; fall through to the warning */
+            }
+
+            if (currentSid != null && suSid.Equals(currentSid))
+                return;
+
+            Log.Message(MESS.WARN,
+                "{0}:{1}: the process does not run as the 'su' user ({2}, current account {3}); "
+                + $"scripts ({Op.PreRotate}, {Op.PostRotate}, {Op.FirstAction}, {Op.LastAction}, {Op.Preremove}, {Op.MailScript} "
+                + "will run under the current account ('su' cannot switch "
+                + "users on Windows)\n",
+                configFile, lineNum, suSid, currentSid?.ToString() ?? "<unknown>");
+        }
+
+        /// <summary>
         /// The rightmost sub-authority of a SID, used as a POSIX-like uid/gid
         /// number (e.g. 'Administrators' S-1-5-32-544 -> 544).
         /// </summary>
@@ -474,6 +519,8 @@ to.CreateMode = from.CreateMode;
             to.CreateGroupSid = from.CreateGroupSid;
             to.SuUid = from.SuUid;
             to.SuGid = from.SuGid;
+            to.SuOwnerSid = from.SuOwnerSid;
+            to.SuGroupSid = from.SuGroupSid;
             to.OlddirMode = from.OlddirMode;
             to.OlddirUid = from.OlddirUid;
             to.OlddirGid = from.OlddirGid;
@@ -520,6 +567,8 @@ to.CreateMode = from.CreateMode;
             target.CreateGroupSid = copy.CreateGroupSid;
             target.SuUid = copy.SuUid;
             target.SuGid = copy.SuGid;
+            target.SuOwnerSid = copy.SuOwnerSid;
+            target.SuGroupSid = copy.SuGroupSid;
             target.OlddirMode = copy.OlddirMode;
             target.OlddirUid = copy.OlddirUid;
             target.OlddirGid = copy.OlddirGid;
@@ -993,11 +1042,9 @@ to.CreateMode = from.CreateMode;
                                     goto error;
                                 }
 long tmpMode = Sentinel.NO_MODE;
-                                string? unusedOwnerSid = null;
-                                string? unusedGroupSid = null;
                                 bool err = ReadModeUidGid(configFile, lineNum, Op.Su, key,
                                     ref tmpMode, ref newlog.SuUid, ref newlog.SuGid,
-                                    ref unusedOwnerSid, ref unusedGroupSid);
+                                    ref newlog.SuOwnerSid, ref newlog.SuGroupSid);
                                 if (err)
                                 {
                                     if (newlog != defConfig)
@@ -1041,6 +1088,8 @@ long tmpMode = Sentinel.NO_MODE;
                                     goto error;
                                 }
                                 newlog.Flags |= LogFlags.Su;
+
+                                CheckSuIdentity(configFile, lineNum, newlog);
                             }
                             else if (key == Op.Create)
                             {
@@ -1788,6 +1837,21 @@ long tmpMode = Sentinel.NO_MODE;
                                                     "{0}:{1} failed to create olddir {2}\n",
                                                     configFile, lineNum, dirName);
                                                 goto error;
+                                            }
+
+                                            /* with 'su' the new olddir gets the su
+                                             * account as owner/group (mirrors
+                                             * switch_user(suUid, suGid) + mkpath). */
+                                            if ((newlog.Flags & LogFlags.Su) != 0)
+                                            {
+                                                SecurityIdentifier? olddirOwner = newlog.SuOwnerSid != null
+                                                    ? new SecurityIdentifier(newlog.SuOwnerSid) : null;
+                                                SecurityIdentifier? olddirGroup = newlog.SuGroupSid != null
+                                                    ? new SecurityIdentifier(newlog.SuGroupSid) : null;
+                                                long olddirMode = newlog.OlddirMode == Sentinel.NO_MODE
+                                                    ? 0x1ED // 0755
+                                                    : newlog.OlddirMode;
+                                                AclApi.ApplyCreateAcl(dirName, olddirMode, olddirOwner, olddirGroup);
                                             }
                                             sbOlddir = FileStat.Stat(dirName);
                                             if (sbOlddir == null)

@@ -1940,8 +1940,13 @@ namespace LogRotate
             {
                 var sb = new FileStat();
 
-                long createUid = log.CreateUid == Sentinel.NO_UID ? state.Sb.Uid : log.CreateUid;
-                long createGid = log.CreateGid == Sentinel.NO_GID ? state.Sb.Gid : log.CreateGid;
+                bool suActive = (log.Flags & LogFlags.Su) != 0;
+                long createUid = log.CreateUid != Sentinel.NO_UID
+                    ? log.CreateUid
+                    : suActive ? log.SuUid : state.Sb.Uid;
+                long createGid = log.CreateGid != Sentinel.NO_GID
+                    ? log.CreateGid
+                    : suActive ? log.SuGid : state.Sb.Gid;
                 long createMode = log.CreateMode == Sentinel.NO_MODE
                     ? state.Sb.Mode & 0x1FF
                     : log.CreateMode;
@@ -1967,9 +1972,13 @@ namespace LogRotate
                             SecurityIdentifier? ownerSid = null;
                             if (log.CreateOwnerSid != null)
                                 ownerSid = new SecurityIdentifier(log.CreateOwnerSid);
+                            else if (suActive && log.SuOwnerSid != null)
+                                ownerSid = new SecurityIdentifier(log.SuOwnerSid);
                             SecurityIdentifier? groupSid = null;
                             if (log.CreateGroupSid != null)
                                 groupSid = new SecurityIdentifier(log.CreateGroupSid);
+                            else if (suActive && log.SuGroupSid != null)
+                                groupSid = new SecurityIdentifier(log.SuGroupSid);
 
                             if (log.CreateMode == Sentinel.NO_MODE)
                             {
