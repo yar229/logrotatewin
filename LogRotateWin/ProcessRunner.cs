@@ -381,11 +381,35 @@ namespace LogRotate
                     return -1;
                 }
 
-                WaitForSingleObject(pi.hProcess, uint.MaxValue);
-                GetExitCodeProcess(pi.hProcess, out uint exitCode);
-                CloseHandle(pi.hThread);
-                CloseHandle(pi.hProcess);
-                result.ExitCode = (int)exitCode;
+                try
+                {
+                    uint wait = WaitForSingleObject(pi.hProcess, uint.MaxValue);
+                    if (wait != 0 /* WAIT_OBJECT_0 */)
+                    {
+                        Log.Message(MESS.ERROR,
+                            "su impersonation: WaitForSingleObject failed for {0} (result {1}); "
+                            + "post/pretotate script did not run\n", account.User, wait);
+                        result.ExitCode = -1;
+                        return -1;
+                    }
+
+                    if (!GetExitCodeProcess(pi.hProcess, out uint exitCode))
+                    {
+                        int error = Marshal.GetLastWin32Error();
+                        Log.Message(MESS.ERROR,
+                            "su impersonation: GetExitCodeProcess failed for {0} (win32 error {1})\n",
+                            account.User, error);
+                        result.ExitCode = -1;
+                        return -1;
+                    }
+
+                    result.ExitCode = (int)exitCode;
+                }
+                finally
+                {
+                    CloseHandle(pi.hThread);
+                    CloseHandle(pi.hProcess);
+                }
             }
             catch (Exception ex)
             {
@@ -525,49 +549,77 @@ namespace LogRotate
                 return IntPtr.Zero;
             }
 
-            if (!CreateEnvironmentBlock(out IntPtr baseBlock, token, false))
+            IntPtr baseBlock = IntPtr.Zero;
+            IntPtr buffer = IntPtr.Zero;
+            try
             {
-                int error = Marshal.GetLastWin32Error();
+                if (!CreateEnvironmentBlock(out baseBlock, token, false))
+                {
+                    int error = Marshal.GetLastWin32Error();
+                    Log.Message(MESS.ERROR,
+                        "su impersonation: CreateEnvironmentBlock failed for {0} (win32 error {1})\n",
+                        account.User, error);
+                    return IntPtr.Zero;
+                }
+
+                var merged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var entry in EnvBlockEntries(baseBlock))
+                {
+                    int sep = entry.IndexOf('=');
+                    if (sep <= 0) continue;
+                    merged[entry.Substring(0, sep)] = entry.Substring(sep + 1);
+                }
+                DestroyEnvironmentBlock(baseBlock);
+                baseBlock = IntPtr.Zero;
+
+                foreach (var (envVar, value) in additionalParams)
+                {
+                    if (!string.IsNullOrWhiteSpace(envVar))
+                        merged[envVar] = value ?? string.Empty;
+                }
+
+                var sb = new StringBuilder();
+                foreach (var kv in merged)
+                    sb.Append(kv.Key).Append('=').Append(kv.Value).Append('\0');
+                sb.Append('\0');
+
+                byte[] bytes = Encoding.Unicode.GetBytes(sb.ToString());
+                buffer = Marshal.AllocHGlobal(bytes.Length);
+                Marshal.Copy(bytes, 0, buffer, bytes.Length);
+                return buffer;
+            }
+            catch (Exception ex)
+            {
                 Log.Message(MESS.ERROR,
-                    "su impersonation: CreateEnvironmentBlock failed for {0} (win32 error {1})\n",
-                    account.User, error);
-                CloseHandle(token);
+                    "su impersonation: cannot build environment block for {0}: {1}\n",
+                    account.User, ex.Message);
+                if (buffer != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(buffer);
+                    buffer = IntPtr.Zero;
+                }
                 return IntPtr.Zero;
             }
-
-            var merged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in EnvBlockEntries(baseBlock))
+            finally
             {
-                int sep = entry.IndexOf('=');
-                if (sep <= 0) continue;
-                merged[entry.Substring(0, sep)] = entry.Substring(sep + 1);
+                if (baseBlock != IntPtr.Zero)
+                    DestroyEnvironmentBlock(baseBlock);
+                CloseHandle(token);
             }
-            DestroyEnvironmentBlock(baseBlock);
-
-            foreach (var (envVar, value) in additionalParams)
-            {
-                if (!string.IsNullOrWhiteSpace(envVar))
-                    merged[envVar] = value ?? string.Empty;
-            }
-
-            var sb = new StringBuilder();
-            foreach (var kv in merged)
-                sb.Append(kv.Key).Append('=').Append(kv.Value).Append('\0');
-            sb.Append('\0');
-
-            byte[] bytes = Encoding.Unicode.GetBytes(sb.ToString());
-            IntPtr buffer = Marshal.AllocHGlobal(bytes.Length);
-            Marshal.Copy(bytes, 0, buffer, bytes.Length);
-            CloseHandle(token);
-            return buffer;
         }
 
         private static IEnumerable<string> EnvBlockEntries(IntPtr block)
         {
             var entries = new List<string>();
+            if (block == IntPtr.Zero)
+                return entries;
+
             var cur = new StringBuilder();
             int index = 0;
-            for (;;)
+            // Defensive cap: a malformed block without the terminating
+            // double-null must not let the loop read past the buffer.
+            const int maxChars = 1 << 20;
+            while (index < maxChars)
             {
                 char c = (char)Marshal.ReadInt16(block, index * 2);
                 if (c == '\0')
