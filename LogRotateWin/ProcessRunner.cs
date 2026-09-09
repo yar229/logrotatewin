@@ -181,25 +181,68 @@ namespace LogRotate
             if (tempScriptFilepath == null)
                 return 1;
 
+            for (int i = 0; i < additionalParams.Length; i++)
+            {
+                string value = additionalParams[i].Value;
+                if (string.IsNullOrEmpty(value))
+                    continue;
+                if (value.IndexOf('"') >= 0)
+                {
+                    Log.Message(MESS.WARN,
+                        "script argument \"{0}\" contains a double quote that cmd.exe cannot "
+                        + "pass through; quotes will be removed\n", additionalParams[i].EnvVar);
+                    additionalParams[i] = (additionalParams[i].EnvVar,
+                        value.Replace("\"", string.Empty));
+                }
+            }
+
             string cmd = Environment.GetEnvironmentVariable("COMSPEC")
                     ?? Path.Combine(Environment.SystemDirectory, "cmd.exe");
 
-            var cmdargs = new StringBuilder();
-            {
-                cmdargs.Append("/S /C ");
-                cmdargs.Append("\"");
-                {
-                    cmdargs.Append("\"" + tempScriptFilepath + "\" ");
-                    foreach (var arg in additionalParams)
-                        cmdargs.Append("\"" + (arg.Value ?? string.Empty) + "\" ");
-                }
-                cmdargs.Append("\"");
-            }
+            string cmdargs = BuildScriptInvocation(tempScriptFilepath, additionalParams);
 
             if (runAs == null)
-                return RunScriptAsCurrentUser(cmd, cmdargs.ToString(), additionalParams);
+                return RunScriptAsCurrentUser(cmd, cmdargs, additionalParams);
 
-            return RunScriptAsUser(runAs.Value, scriptDirectory, cmd, cmdargs.ToString(), additionalParams);
+            return RunScriptAsUser(runAs.Value, scriptDirectory, cmd, cmdargs, additionalParams);
+        }
+
+        /// <summary>
+        /// Builds the /S /C command line that runs a temp script and forwards
+        /// its arguments. Values are never placed on the command line: each
+        /// argument is a %ENVVAR% reference that cmd.exe expands from the
+        /// child-process environment (set separately on the process). cmd
+        /// expands each %NAME% a single time and does not re-scan the
+        /// substituted text, so meta characters (&amp; | &lt; &gt; ^ ( )) inside
+        /// a value stay literal within the fixed quotes and a literal '%'
+        /// inside a value is not expanded. Only the script path (a constant
+        /// temp file path created here) and the env-var names (code constants)
+        /// ever sit on the raw command line, which blocks cmd.exe command
+        /// injection from log/script values.
+        /// </summary>
+        private static string BuildScriptInvocation(string scriptPath,
+                                                    (string EnvVar, string Value)[] additionalParams)
+        {
+            var sb = new StringBuilder();
+            sb.Append("/S /C ");
+            sb.Append('"');
+            sb.Append('"').Append(scriptPath).Append('"');
+            foreach (var arg in additionalParams)
+            {
+                if (string.IsNullOrEmpty(arg.EnvVar))
+                    continue;
+                if (string.IsNullOrEmpty(arg.Value))
+                {
+                    // an empty positional argument keeps the historical
+                    // "" token so the script sees %N = "" (cmd cannot hold an
+                    // empty environment variable for a %NAME% reference).
+                    sb.Append(" \"\"");
+                    continue;
+                }
+                sb.Append(" \"%").Append(arg.EnvVar).Append("%\"");
+            }
+            sb.Append('"');
+            return sb.ToString();
         }
 
         private static int RunScriptAsCurrentUser(string cmd, string cmdargs,
@@ -216,7 +259,7 @@ namespace LogRotate
             foreach (var arg in additionalParams)
             {
                 if (!string.IsNullOrWhiteSpace(arg.EnvVar))
-                    psi.Environment[arg.EnvVar] = arg.Value;
+                    psi.Environment[arg.EnvVar] = arg.Value ?? string.Empty;
             }
 
             var result = new ProcessResult();
@@ -449,7 +492,7 @@ namespace LogRotate
             foreach (var (envVar, value) in additionalParams)
             {
                 if (!string.IsNullOrWhiteSpace(envVar))
-                    merged[envVar] = value;
+                    merged[envVar] = value ?? string.Empty;
             }
 
             var sb = new StringBuilder();
