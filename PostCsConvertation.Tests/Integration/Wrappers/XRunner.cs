@@ -213,8 +213,8 @@ internal class XRunner
     public XLogFile NewLog()
         => NewLog(string.Empty);
 
-    public XFile NewFile(string logname)
-        => new XFile(_container.TestDir, logname);
+    public XFile NewFile(string filename)
+        => new XFile(_container.TestDir, filename);
 
     public XPattern NewPattern(string pattern)
         => new XPattern(_container.TestDir, pattern);

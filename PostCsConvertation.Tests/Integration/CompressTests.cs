@@ -26,13 +26,11 @@ public class CompressTests : NewWaveIntegrationTestBase
             + "log entry 2026-09-09 id=42 value=значение\r\n"
             + "another entry with tabs\tand symbols #%&^$\r\n"
             + "final\r\n";
-        byte[] original = Encoding.UTF8.GetBytes(content);
 
-        string logName = "app.log";
-        var log = Runner.NewLog(logName);
-        File.WriteAllBytes(log.Filepath, original);
-
-        var gz = Runner.NewFile($"{logName}.1.gz");
+        var log = Runner.NewLog("app.log")
+            .WithContent(content)
+            .Create();
+        var gz = Runner.NewFile($"{log.Filename}.1.gz");
 
         Runner
             .WithLog(log, l => l
@@ -45,16 +43,13 @@ public class CompressTests : NewWaveIntegrationTestBase
                     .With(Op.Compress)
                     .With(Op.Monthly))
                 .Create())
-            .RunAndCheck();
+            .RunAndCheck()
+                .ExitCode.Should().Be(0);
 
-        Runner.ExitCode.Should().Be(0);
+        var original = Encoding.UTF8.GetBytes(content);
+        var extracted = gz.UnGZip();
 
-        using var inFile = File.OpenRead(gz.Filepath);
-        using var gzStream = new GZipStream(inFile, CompressionMode.Decompress);
-        using var extracted = new MemoryStream();
-        gzStream.CopyTo(extracted);
-
-        extracted.ToArray().Should().Equal(original, because:"log content and rotated to gzip content must be equal");
+        extracted.Should().Equal(original, because:"log content and rotated to gzip content must be equal");
     }
 
 

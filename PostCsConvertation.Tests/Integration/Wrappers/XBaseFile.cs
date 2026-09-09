@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 
 namespace PostCsConvertation.Tests.Integration.Wrappers;
@@ -63,6 +64,16 @@ internal abstract class XBaseFile
     {
         CreationTime = dateTime;
         return this;
+    }
+
+    public byte[] UnGZip()
+    {
+        using var inFile = File.OpenRead(Filepath);
+        using var gzStream = new GZipStream(inFile, CompressionMode.Decompress);
+        using var extracted = new MemoryStream();
+        gzStream.CopyTo(extracted);
+
+        return extracted.ToArray();
     }
 
     #region ShouldBe ========================================================================
