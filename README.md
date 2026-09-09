@@ -1,7 +1,7 @@
-# LogRotateWin
+# [LogRotateWin](https://github.com/yar229/logrotatewin)
 
-Порт утилиты **logrotate 3.22.0** из Ubuntu (исходные тексты лежат в папке
-`logrotate-3.22.0`) под Windows на платформе .NET (проект `LogRotateWin`).
+Порт утилиты [logrotate](https://launchpad.net/ubuntu/+source/logrotate) v.3.22.0 из Ubuntu на платформу .NET 10 под Windows.
+[Ubuntu manpages: logrotate](https://manpages.ubuntu.com/manpages/stonking/man8/logrotate.8.html)
 
 ## Об утилите
 
@@ -11,17 +11,26 @@
 
 Основные особенности порта:
 
-- ротация по времени (hourly/daily/weekly/monthly/yearly), по размеру
-  (`size`/`minsize`/`maxsize`) и принудительно (`-f`, `--force`);
 - сжатие выполняется встроенными средствами .NET (GZip) по умолчанию либо
   внешней программой через директивы `compresscmd`/`compressoptions`;
+
 - отправка журналов по почте выполняется так же, как в Linux: вызывается
   `mail -s <subject> <address>`, содержимое журнала (при необходимости
   распакованное) подаётся в stdin команды; команду можно переопределить
   флагом `-m`/`--mail` или директивой `mailscript`;
+
 - директива `create` реально применяет к создаваемым файлам права доступа
   (DACL) и владельца из ключевой строки `create <mode> <owner> <group>`;
-- структура state-файла совместима с оригиналом.
+
+- директива `su owner group` применяется при пересоздании лог-файла
+  (`create`) и при создании каталога `createolddir`: создаваемому файлу/
+  каталогу назначаются права доступа (DACL) и владелец/группа из
+  `su`, если владелец не задан явно в `create`/`createolddir`
+  (аналог `switch_user()` в оригинале; смена владельца возможна только
+  при запуске от имени администратора); при указании пароля (директива
+  `supasswd`) скрипты (`prerotate`, `postrotate`, `firstaction`,
+  `lastaction`, `preremove`, `mailscript`) выполняются от имени
+  пользователя, указанного в `su`;
 
 Проект включает три группы тестов:
 
@@ -70,10 +79,10 @@
 
 ### `mailscript`
 
-Переопределяет команду отправки почты только для данного раздела лога,
-задавая её в виде скрипта (блок между `mailscript` и `endscript`). Скрипт
+Переопределяет команду отправки почты, задавая её в виде скрипта 
+(блок между `mailscript` и `endscript`). Скрипт
 запускается через `cmd.exe`, как и остальные скрипты директив.
-В отличие от команды `–-mail <cmd>`, указанной в комадной строке, не ожилает
+В отличие от команды `–-mail <cmd>`, указанной в комадной строке, не ожидает
 данные из stdin и не пишет в stdout.
 
 В значении скрипта доступны параметры:
@@ -94,6 +103,57 @@
     endscript
 }
 ```
+
+### `supasswd <password>`
+
+Пароль пользователя из директивы `su`. Когда пароль задан, скрипты
+(`prerotate`, `postrotate`, `firstaction`, `lastaction`, `preremove`,
+`mailscript`) выполняются от имени этого пользователя
+(аналог `switch_user()` в оригинале): Windows-порт запускает их через
+`CreateProcessWithLogonW` (флаг `LOGON_WITH_PROFILE`), так что использующая
+процессов авторизация, сетевые доступы и т.п. принадлежат указанному
+аккаунту, а не текущему.
+
+Обратите внимание:
+
+- пароль хранится в открытом виде в конфигурационном файле;
+- запуск под другим пользователем требует, чтобы logrotate был запущен
+  с правами администратора (нужна привилегия `SeImpersonatePrivilege`),
+  а сам аккаунт должен иметь право «Allow log on locally», иначе 
+  `CreateProcessWithLogonW` вернёт ошибку  и скрипты выполнятся от текущего аккаунта 
+  (будет выведено   предупреждение);
+- аккаунт должен быть локальным или доменным и существовать в системе.
+
+```
+"c:\logs\app.log" {
+    rotate 7
+    create 0644
+    su appuser appgroup
+    supasswd appuser_password
+
+    postrotate
+        type %1 >> %2
+    endscript
+}
+```
+Пример для ротации логов nginx, если он запущен как сервис под пользователем `nginx-user`:
+```
+"c:\logs\app.log" {
+    ...
+    ...
+    su nginx-user Users
+    supasswd nginx-user-password
+
+    postrotate
+        c:
+		cd c:\Services\nginx 
+		nginx.exe -s reopen
+    endscript
+}
+```
+
+
+Директива `supasswd` без `su` игнорируется (выводится предупреждение).
 
 ### Параметры в скриптах `prerotate`, `postrotate`, `preremove`
 

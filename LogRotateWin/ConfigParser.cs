@@ -227,6 +227,56 @@ private static bool ResolveUid(string userName, out long uid, out string? sid)
         }
 
         /// <summary>
+        /// Warns when 'su' names an account different from the one the process
+        /// runs under: unlike Linux, Windows cannot switch the effective user
+        /// (there is no setuid()), so scripts will keep running under the
+        /// current account.
+        /// </summary>
+        private static void CheckSuIdentity(string configFile, int lineNum, LogInfo log)
+        {
+            if (log.SuUid == Sentinel.NO_UID)
+                return;
+
+            /* with supasswd, scripts can be run as the su user via
+             * impersonation, so no warning is needed here */
+            if (log.SuOwnerSid != null && !string.IsNullOrEmpty(log.SuPassword))
+                return;
+
+            if (log.SuOwnerSid == null)
+            {
+                /* numeric/root su user: there is no Windows account to compare */
+                Log.Message(MESS.WARN,
+                    "{0}:{1}: cannot verify the 'su' user {2} against a Windows account; "
+                    + $"scripts ({Op.PreRotate}, {Op.PostRotate}, {Op.FirstAction}, {Op.LastAction}, {Op.Preremove}, {Op.MailScript}) "
+                    + "will run under the current account ('su' cannot switch "
+                    + "users on Windows)\n",
+                    configFile, lineNum, log.SuUid);
+                return;
+            }
+
+            var suSid = new SecurityIdentifier(log.SuOwnerSid);
+            SecurityIdentifier? currentSid = null;
+            try
+            {
+                currentSid = WindowsIdentity.GetCurrent().User;
+            }
+            catch (Exception)
+            {
+                /* account could not be determined; fall through to the warning */
+            }
+
+            if (currentSid != null && suSid.Equals(currentSid))
+                return;
+
+            Log.Message(MESS.WARN,
+                "{0}:{1}: the process does not run as the 'su' user ({2}, current account {3}); "
+                + $"scripts ({Op.PreRotate}, {Op.PostRotate}, {Op.FirstAction}, {Op.LastAction}, {Op.Preremove}, {Op.MailScript} "
+                + "will run under the current account ('su' cannot switch "
+                + "users on Windows)\n",
+                configFile, lineNum, suSid, currentSid?.ToString() ?? "<unknown>");
+        }
+
+        /// <summary>
         /// The rightmost sub-authority of a SID, used as a POSIX-like uid/gid
         /// number (e.g. 'Administrators' S-1-5-32-544 -> 544).
         /// </summary>
@@ -474,6 +524,9 @@ to.CreateMode = from.CreateMode;
             to.CreateGroupSid = from.CreateGroupSid;
             to.SuUid = from.SuUid;
             to.SuGid = from.SuGid;
+            to.SuOwnerSid = from.SuOwnerSid;
+            to.SuGroupSid = from.SuGroupSid;
+            to.SuPassword = from.SuPassword;
             to.OlddirMode = from.OlddirMode;
             to.OlddirUid = from.OlddirUid;
             to.OlddirGid = from.OlddirGid;
@@ -520,6 +573,9 @@ to.CreateMode = from.CreateMode;
             target.CreateGroupSid = copy.CreateGroupSid;
             target.SuUid = copy.SuUid;
             target.SuGid = copy.SuGid;
+            target.SuOwnerSid = copy.SuOwnerSid;
+            target.SuGroupSid = copy.SuGroupSid;
+            target.SuPassword = copy.SuPassword;
             target.OlddirMode = copy.OlddirMode;
             target.OlddirUid = copy.OlddirUid;
             target.OlddirGid = copy.OlddirGid;
@@ -706,6 +762,128 @@ to.CreateMode = from.CreateMode;
             return null;
         }
 
+        /// <summary>
+        /// Parses a log file definition header (one or more names/globs followed by '{')
+        /// and creates a new LogInfo for it. The caller must ensure newlog == defConfig.
+        /// Returns 0 on success, 1 on fatal error (caller should goto error).
+        /// </summary>
+        private int LogFileSectionStart(string configFile, int lineNum, string buf,
+                                        LogInfo defConfig, ref int pos, int length,
+                                        ref int logerror, ref int inConfig, ref LogInfo newlog)
+        {
+            // If no compression options set, use defaults
+            if (newlog.CompressProg == null)
+                newlog.CompressProg = Options.DefaultCompressCommand;
+            if (newlog.UncompressProg == null)
+                newlog.UncompressProg = Options.DefaultUncompressCommand;
+            if (newlog.CompressExt == null)
+                newlog.CompressExt = Options.DefaultCompressExt;
+
+            newlog = NewLogInfo(defConfig);
+
+            string? globString = ParseGlobString(configFile, lineNum, buf, ref pos, length);
+            if (globString != null)
+                inConfig = 1;
+            else
+                return 1;
+
+            var fileArgs = ArgvParser.Parse(globString);
+            if (fileArgs == null)
+            {
+                Log.Message(MESS.ERROR, "{0}:{1} error parsing filename\n",
+                    configFile, lineNum);
+                return 1;
+            }
+            if (fileArgs.Count < 1)
+            {
+                Log.Message(MESS.ERROR,
+                    "{0}:{1} {{ expected after log file name(s)\n",
+                    configFile, lineNum);
+                return 1;
+            }
+
+            newlog.Files.Clear();
+            foreach (var arg in fileArgs)
+            {
+                if (_globerrMsg != null)
+                    _globerrMsg = null;
+
+                if (arg.Length > 2048)
+                {
+                    Log.Message(MESS.ERROR, "{0}:{1} glob too long ({2} > 2048)\n",
+                        configFile, lineNum, arg.Length);
+                    logerror = 1;
+                    continue;
+                }
+
+                var (rc, matches) = Glob.GlobNoCheck(arg);
+                if (rc == GlobResultCode.GLOB_ABORTED)
+                {
+                    if ((newlog.Flags & LogFlags.MissingOk) != 0)
+                        continue;
+                    _globerrMsg = string.Format("{0}:{1} glob failed for {2}: {3}\n",
+                        configFile, lineNum, arg, "Error accessing path");
+                    Log.Message(MESS.DEBUG, "{0}", _globerrMsg);
+                    matches = new List<string>();
+                }
+
+                if (matches.Count == 0)
+                {
+                    Log.Message(MESS.DEBUG,
+                        "{0}:{1} no matches for glob '{2}', skipping\n",
+                        configFile, lineNum, arg);
+                    continue;
+                }
+
+                foreach (var match in matches)
+                {
+                    // skip directories
+                    var st = FileStat.Lstat(match);
+                    if (st != null && FileStat.IsDirectory(st))
+                        continue;
+
+                    bool addFile = true;
+                    foreach (var log in Logs)
+                    {
+                        foreach (var existing in log.Files)
+                        {
+                            if (existing == match)
+                            {
+                                if ((log.Flags & LogFlags.IgnoreDuplicates) != 0)
+                                {
+                                    addFile = false;
+                                    Log.Message(MESS.DEBUG,
+                                        "{0}:{1} ignore duplicate log entry for {2}\n",
+                                        configFile, lineNum, match);
+                                }
+                                else
+                                {
+                                    Log.Message(MESS.ERROR,
+                                        "{0}:{1} duplicate log entry for {2}\n",
+                                        configFile, lineNum, match);
+                                    logerror = 1;
+                                    goto duperror;
+                                }
+                                break;
+                            }
+                        }
+                        if (!addFile)
+                            break;
+                    }
+
+                    if (addFile)
+                    {
+                        newlog.Files.Add(match);
+                    }
+                }
+            duperror:
+                ;
+            }
+
+            newlog.Pattern = globString;
+            return 0;
+        }
+
         // =================================================================
         // readConfigFile - the state machine
         // =================================================================
@@ -796,15 +974,24 @@ to.CreateMode = from.CreateMode;
                             }
                             if (pos < length && !C.IsSpace(buf[pos]) && buf[pos] != '=')
                             {
+                                if (newlog == defConfig)
+                                {
+                                    /* Not a property of a bare option keyword: the token is
+                                       glued to a non-blank char (".", "\", "/", "*", ...).
+                                       Treat it as the start of an unquoted log file
+                                       name/glob, e.g. "app.log", "logs\app*.log" { */
+                                    pos = pos - key.Length;
+                                    if (LogFileSectionStart(configFile, lineNum, buf, defConfig, ref pos, length,
+                                            ref logerror, ref inConfig, ref newlog) != 0)
+                                        goto error;
+                                    break;
+                                }
+
                                 Log.Message(MESS.ERROR,
                                     "{0}:{1} keyword '{2}' not properly separated, found {3:#x}\n",
                                     configFile, lineNum, key, (int)buf[pos]);
-                                if (newlog != defConfig)
-                                {
-                                    state = STATE_ERROR;
-                                    goto next_state;
-                                }
-                                goto error;
+                                state = STATE_ERROR;
+                                goto next_state;
                             }
 
                             if (key == Op.Compress) newlog.Flags |= LogFlags.Compress;
@@ -862,11 +1049,9 @@ to.CreateMode = from.CreateMode;
                                     goto error;
                                 }
 long tmpMode = Sentinel.NO_MODE;
-                                string? unusedOwnerSid = null;
-                                string? unusedGroupSid = null;
                                 bool err = ReadModeUidGid(configFile, lineNum, Op.Su, key,
                                     ref tmpMode, ref newlog.SuUid, ref newlog.SuGid,
-                                    ref unusedOwnerSid, ref unusedGroupSid);
+                                    ref newlog.SuOwnerSid, ref newlog.SuGroupSid);
                                 if (err)
                                 {
                                     if (newlog != defConfig)
@@ -910,6 +1095,18 @@ long tmpMode = Sentinel.NO_MODE;
                                     goto error;
                                 }
                                 newlog.Flags |= LogFlags.Su;
+
+                                /* for a section, the identity check runs when the
+                                 * section closes (supasswd may come after su) */
+                                if (newlog == defConfig)
+                                    CheckSuIdentity(configFile, lineNum, newlog);
+                            }
+                            else if (key == Op.SuPasswd)
+                            {
+                                key = IsolateValue(configFile, lineNum, key, buf, ref pos, length);
+                                if (key == null)
+                                    continue;
+                                newlog.SuPassword = key;
                             }
                             else if (key == Op.Create)
                             {
@@ -937,7 +1134,7 @@ long tmpMode = Sentinel.NO_MODE;
                                 if (key == null)
                                     continue;
 
-string? olddirOwnerSid = null;
+                                string? olddirOwnerSid = null;
                                 string? olddirGroupSid = null;
                                 bool err = ReadModeUidGid(configFile, lineNum, Op.CreateOldDir, key,
                                     ref newlog.OlddirMode, ref newlog.OlddirUid, ref newlog.OlddirGid,
@@ -1567,132 +1764,23 @@ string? olddirOwnerSid = null;
                             }
                             else
                             {
+                                if (newlog == defConfig)
+                                {
+                                    /* Unknown alphabetic token at the top level is an
+                                       unquoted log file name/glob, e.g. "custom.log {"
+                                       or "logs\*.log {" */
+                                    pos = pos - key.Length;
+                                    if (LogFileSectionStart(configFile, lineNum, buf, defConfig, ref pos, length,
+                                            ref logerror, ref inConfig, ref newlog) != 0)
+                                        goto error;
+                                    break;
+                                }
+
                                 Log.Message(MESS.WARN, "{0}:{1} unknown option '{2}' -- ignoring line\n",
                                     configFile, lineNum, key);
                                 if (pos < length && buf[pos] != '\n')
                                     state = STATE_SKIP_LINE;
                             }
-                        }
-                        else if (ch == '/' || ch == '"' || ch == '\'' || ch == '~' || ch == '\\')
-                        {
-                            if (newlog != defConfig)
-                            {
-                                Log.Message(MESS.ERROR, "{0}:{1} unexpected log filename\n",
-                                    configFile, lineNum);
-                                state = STATE_ERROR;
-                                continue;
-                            }
-
-                            // If no compression options set, use defaults
-                            if (newlog.CompressProg == null)
-                                newlog.CompressProg = Options.DefaultCompressCommand;
-                            if (newlog.UncompressProg == null)
-                                newlog.UncompressProg = Options.DefaultUncompressCommand;
-                            if (newlog.CompressExt == null)
-                                newlog.CompressExt = Options.DefaultCompressExt;
-
-                            newlog = NewLogInfo(defConfig);
-
-                            string? globString = ParseGlobString(configFile, lineNum, buf, ref pos, length);
-                            if (globString != null)
-                                inConfig = 1;
-                            else
-                                goto error;
-
-                            var fileArgs = ArgvParser.Parse(globString);
-                            if (fileArgs == null)
-                            {
-                                Log.Message(MESS.ERROR, "{0}:{1} error parsing filename\n",
-                                    configFile, lineNum);
-                                goto error;
-                            }
-                            if (fileArgs.Count < 1)
-                            {
-                                Log.Message(MESS.ERROR,
-                                    "{0}:{1} {{ expected after log file name(s)\n",
-                                    configFile, lineNum);
-                                goto error;
-                            }
-
-                            newlog.Files.Clear();
-                            foreach (var arg in fileArgs)
-                            {
-                                if (_globerrMsg != null)
-                                    _globerrMsg = null;
-
-                                if (arg.Length > 2048)
-                                {
-                                    Log.Message(MESS.ERROR, "{0}:{1} glob too long ({2} > 2048)\n",
-                                        configFile, lineNum, arg.Length);
-                                    logerror = 1;
-                                    continue;
-                                }
-
-                                var (rc, matches) = Glob.GlobNoCheck(arg);
-                                if (rc == GlobResultCode.GLOB_ABORTED)
-                                {
-                                    if ((newlog.Flags & LogFlags.MissingOk) != 0)
-                                        continue;
-                                    _globerrMsg = string.Format("{0}:{1} glob failed for {2}: {3}\n",
-                                        configFile, lineNum, arg, "Error accessing path");
-                                    Log.Message(MESS.DEBUG, "{0}", _globerrMsg);
-                                    matches = new List<string>();
-                                }
-
-                                if (matches.Count == 0)
-                                {
-                                    Log.Message(MESS.DEBUG,
-                                        "{0}:{1} no matches for glob '{2}', skipping\n",
-                                        configFile, lineNum, arg);
-                                    continue;
-                                }
-
-                                foreach (var match in matches)
-                                {
-                                    // skip directories
-                                    var st = FileStat.Lstat(match);
-                                    if (st != null && FileStat.IsDirectory(st))
-                                        continue;
-
-                                    bool addFile = true;
-                                    foreach (var log in Logs)
-                                    {
-                                        foreach (var existing in log.Files)
-                                        {
-                                            if (existing == match)
-                                            {
-                                                if ((log.Flags & LogFlags.IgnoreDuplicates) != 0)
-                                                {
-                                                    addFile = false;
-                                                    Log.Message(MESS.DEBUG,
-                                                        "{0}:{1} ignore duplicate log entry for {2}\n",
-                                                        configFile, lineNum, match);
-                                                }
-                                                else
-                                                {
-                                                    Log.Message(MESS.ERROR,
-                                                        "{0}:{1} duplicate log entry for {2}\n",
-                                                        configFile, lineNum, match);
-                                                    logerror = 1;
-                                                    goto duperror;
-                                                }
-                                                break;
-                                            }
-                                        }
-                                        if (!addFile)
-                                            break;
-                                    }
-
-                                    if (addFile)
-                                    {
-                                        newlog.Files.Add(match);
-                                    }
-                                }
-                            duperror:
-                                ;
-                            }
-
-                            newlog.Pattern = globString;
                         }
                         else if (ch == '}')
                         {
@@ -1717,6 +1805,17 @@ string? olddirOwnerSid = null;
                                 if ((newlog.Flags & LogFlags.MissingOk) == 0)
                                     goto error;
                             }
+
+                            if (newlog.SuPassword != null
+                                    && (newlog.Flags & LogFlags.Su) == 0)
+                            {
+                                Log.Message(MESS.WARN,
+                                    "{0}:{1}: supasswd is ignored because 'su' is not set\n",
+                                    configFile, lineNum);
+                            }
+
+                            if (newlog != defConfig && newlog.SuPassword == null)
+                                CheckSuIdentity(configFile, lineNum, newlog);
 
                             if (newlog.OldDir != null)
                             {
@@ -1767,6 +1866,21 @@ string? olddirOwnerSid = null;
                                                     configFile, lineNum, dirName);
                                                 goto error;
                                             }
+
+                                            /* with 'su' the new olddir gets the su
+                                             * account as owner/group (mirrors
+                                             * switch_user(suUid, suGid) + mkpath). */
+                                            if ((newlog.Flags & LogFlags.Su) != 0)
+                                            {
+                                                SecurityIdentifier? olddirOwner = newlog.SuOwnerSid != null
+                                                    ? new SecurityIdentifier(newlog.SuOwnerSid) : null;
+                                                SecurityIdentifier? olddirGroup = newlog.SuGroupSid != null
+                                                    ? new SecurityIdentifier(newlog.SuGroupSid) : null;
+                                                long olddirMode = newlog.OlddirMode == Sentinel.NO_MODE
+                                                    ? 0x1ED // 0755
+                                                    : newlog.OlddirMode;
+                                                AclApi.ApplyCreateAcl(dirName, olddirMode, olddirOwner, olddirGroup);
+                                            }
                                             sbOlddir = FileStat.Stat(dirName);
                                             if (sbOlddir == null)
                                             {
@@ -1801,15 +1915,20 @@ string? olddirOwnerSid = null;
                         }
                         else if (ch != '\n')
                         {
-                            Log.Message(MESS.ERROR,
-                                "{0}:{1} lines must begin with a keyword or a filename (possibly in double quotes)\n",
-                                configFile, lineNum);
+                            /* A quoted name ("app log.log"), an absolute path, or an
+                               unquoted name/glob (app.log, logs\*.log, *.log, ...): the
+                               start of a log file definition. */
                             if (newlog != defConfig)
                             {
+                                Log.Message(MESS.ERROR, "{0}:{1} unexpected log filename\n",
+                                    configFile, lineNum);
                                 state = STATE_ERROR;
-                                goto next_state;
+                                continue;
                             }
-                            goto error;
+
+                            if (LogFileSectionStart(configFile, lineNum, buf, defConfig, ref pos, length,
+                                    ref logerror, ref inConfig, ref newlog) != 0)
+                                goto error;
                         }
                         break;
 

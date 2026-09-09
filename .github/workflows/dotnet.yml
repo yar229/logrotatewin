@@ -1,0 +1,57 @@
+name: dotnet
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set version from tag
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          "VERSION=$version" >> $env:GITHUB_ENV
+          "PROJECT_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Restore
+        run: dotnet restore LogRotateWin.slnx
+
+      - name: Build
+        run: dotnet build LogRotateWin.slnx --configuration Release --no-restore --self-contained false -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:Version=$env:PROJECT_VERSION
+
+      - name: Publish
+        run: dotnet publish LogRotateWin/LogRotateWin.csproj --configuration Release -p:PublishSingleFile=true -p:SelfContained=false -p:Version=$env:PROJECT_VERSION --output publish
+
+      - name: Verify exe version
+        shell: pwsh
+        run: |
+          (Get-Item publish\logrotate.exe).VersionInfo | Format-List ProductVersion,FileVersion
+
+      - name: Archive
+        shell: pwsh
+        run: |
+          Copy-Item README.md "publish\README.md" -Force
+          Push-Location publish
+          Compress-Archive -Path "logrotate.exe", "README.md" -DestinationPath "..\logrotatewin-$env:VERSION.zip" -Force
+          Pop-Location
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" "logrotatewin-$env:VERSION.zip" --title "${{ github.ref_name }}" --generate-notes

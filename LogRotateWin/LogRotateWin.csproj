@@ -10,6 +10,8 @@
     <LangVersion>latest</LangVersion>
     <InvariantGlobalization>false</InvariantGlobalization>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Company>https://github.com/yar229/logrotatewin</Company>
+	<Copyright>https://github.com/yar229/logrotatewin</Copyright>
   </PropertyGroup>
 
 </Project>
