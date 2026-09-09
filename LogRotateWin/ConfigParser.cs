@@ -1841,17 +1841,10 @@ long tmpMode = Sentinel.NO_MODE;
 
                                     string dirName;
 
-                                    //if (newlog.OldDir[0] != '/' && newlog.OldDir[0] != '\\')
                                     var fullPath = Path.GetFullPath(newlog.OldDir);
-                                    if (newlog.OldDir != fullPath)
-                                    {
-                                        //dirName = dirPath + "\\" + newlog.OldDir;
-                                        dirName = Path.Combine(fullPath, newlog.OldDir);
-                                    }
-                                    else
-                                    {
-                                        dirName = newlog.OldDir;
-                                    }
+                                    dirName = newlog.OldDir != fullPath
+                                        ? Path.Combine(dirPath, newlog.OldDir)
+                                        : newlog.OldDir;
 
                                     var sbOlddir = FileStat.Stat(dirName);
                                     if (sbOlddir == null)
