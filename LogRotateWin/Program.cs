@@ -35,6 +35,11 @@ public static class Program
         {
             return Run(args);
         }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("logrotate: fatal error: {0}", ex.Message);
+            return 1;
+        }
         finally
         {
             ProcessRunner.CleanupScriptCache();
