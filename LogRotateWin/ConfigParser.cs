@@ -531,6 +531,7 @@ to.CreateMode = from.CreateMode;
             to.OlddirUid = from.OlddirUid;
             to.OlddirGid = from.OlddirGid;
             to.CompressOptions.AddRange(from.CompressOptions);
+            to.UnCompressOptions.AddRange(from.UnCompressOptions);
             to.DateFormat = from.DateFormat;
             return to;
         }
@@ -579,8 +580,13 @@ to.CreateMode = from.CreateMode;
             target.OlddirMode = copy.OlddirMode;
             target.OlddirUid = copy.OlddirUid;
             target.OlddirGid = copy.OlddirGid;
+
             target.CompressOptions.Clear();
             target.CompressOptions.AddRange(copy.CompressOptions);
+
+            target.UnCompressOptions.Clear();
+            target.UnCompressOptions.AddRange(copy.UnCompressOptions);
+
             target.DateFormat = copy.DateFormat;
         }
 
