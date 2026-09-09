@@ -33,12 +33,36 @@ namespace LogRotate
         private static readonly object _scriptFileLock = new object();
 
         /// <summary>
-        /// Cache of script content -> temp .cmd file path. Scripts are written
-        /// once and reused for identical content; all created files are removed
-        /// by CleanupScriptCache() at program shutdown.
+        /// Cache of script content -> temp .cmd script file. Scripts are
+        /// written once and reused for identical content; all created files
+        /// are removed by CleanupScriptCache() at program shutdown.
         /// </summary>
-        private static readonly Dictionary<string, string> _scriptFileCache =
-            new Dictionary<string, string>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, ScriptFile> _scriptFileCache =
+            new Dictionary<string, ScriptFile>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// A temp .cmd script file. The write handle is kept open with
+        /// FILE_SHARE_READ for the whole lifetime of the file: no other
+        /// process may open it for write/delete/rename, so the file cannot be
+        /// swapped between creation and execution (TOCTOU), including while it
+        /// sits in the cache between runs. cmd.exe (and an impersonated child)
+        /// can still open the file for reading.
+        /// </summary>
+        private sealed class ScriptFile : IDisposable
+        {
+            private readonly FileStream _handle;
+
+            public ScriptFile(string path, FileStream handle)
+            {
+                Path = path;
+                _handle = handle;
+            }
+
+            public string Path { get; }
+
+            public void Dispose()
+                => _handle.Dispose();
+        }
 
         /// <summary>
         /// Executes an executable with arguments. Optionally captures stderr
@@ -110,16 +134,17 @@ namespace LogRotate
             {
                 if (_scriptFileCache.Any())
                 {
-                    Log.Message(MESS.DEBUG, "clearing script files cache\n");
-                    foreach (var path in _scriptFileCache.Values)
+                    Log.Message(MESS.DEBUG, $"clearing script files cache ({_scriptFileCache.Count} files)\n");
+                    foreach (var scriptFile in _scriptFileCache.Values)
                     {
                         try
                         {
-                            File.Delete(path);
+                            scriptFile.Dispose();
+                            File.Delete(scriptFile.Path);
                         }
                         catch
                         {
-                            Log.Message(MESS.ERROR, "cannot delete temp script file: {0}\n", path);
+                            Log.Message(MESS.ERROR, "cannot delete temp script file: {0}\n", scriptFile.Path);
                         }
                     }
                     _scriptFileCache.Clear();
@@ -138,24 +163,54 @@ namespace LogRotate
             {
                 string cacheKey = (scriptDirectory ?? string.Empty) + "\x1f" + script;
                 if (_scriptFileCache.TryGetValue(cacheKey, out var cached))
-                    return cached;
+                    return cached.Path;
 
                 string tempScriptFilepath = string.Empty;
                 try
                 {
                     string dir = scriptDirectory ?? Path.GetTempPath();
                     Directory.CreateDirectory(dir);
-                    tempScriptFilepath = Path.Combine(dir, "logrotate-" + Guid.NewGuid().ToString("N") + ".cmd");
-                    File.WriteAllText(tempScriptFilepath, script);
+
+                    // CreateNew + write through this very handle and keep it
+                    // open with FILE_SHARE_READ only, so nobody else can open
+                    // the file for write/delete/rename and swap the script
+                    // between creation and execution (TOCTOU). The handle stays
+                    // open for the file's lifetime, cache hits included.
+                    var utf8 = new UTF8Encoding(false);
+                    for (int attempt = 0; ; attempt++)
+                    {
+                        tempScriptFilepath = Path.Combine(dir,
+                            "logrotate-" + Guid.NewGuid().ToString("N") + ".cmd");
+                        try
+                        {
+                            var handle = new FileStream(tempScriptFilepath, FileMode.CreateNew,
+                                FileAccess.Write, FileShare.Read, 4096, FileOptions.WriteThrough);
+                            try
+                            {
+                                byte[] bytes = utf8.GetBytes(script);
+                                handle.Write(bytes, 0, bytes.Length);
+                                handle.Flush(flushToDisk: true);
+                            }
+                            catch
+                            {
+                                handle.Dispose();
+                                throw;
+                            }
+                            _scriptFileCache[cacheKey] = new ScriptFile(tempScriptFilepath, handle);
+                            return tempScriptFilepath;
+                        }
+                        catch (IOException) when (attempt < 10 && File.Exists(tempScriptFilepath))
+                        {
+                            // collision on the random name; pick another one
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Log.Message(MESS.ERROR, "cannot create temp script file {0}: {1}\n", tempScriptFilepath, ex.Message);
+                    Log.Message(MESS.ERROR, "cannot create temp script file {0}: {1}\n",
+                        tempScriptFilepath, ex.Message);
                     return null;
                 }
-
-                _scriptFileCache[cacheKey] = tempScriptFilepath;
-                return tempScriptFilepath;
             }
         }
 
