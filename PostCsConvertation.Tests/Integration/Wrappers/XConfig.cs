@@ -14,7 +14,7 @@ internal class XConfig
     public XConfig(string testDir, string filename)
     {
         _testDir = testDir;
-        _filename = string.IsNullOrEmpty(_filename) ? $"config-{Guid.NewGuid()}.conf" : filename;
+        _filename = string.IsNullOrEmpty(filename) ? $"config-{Guid.NewGuid()}.conf" : filename;
     }
    
     public string Filepath
