@@ -160,4 +160,25 @@ public class PrePostRotateTests : NewWaveIntegrationTestBase
                 .Create())
             .RunAndCheck();
     }
+
+    [Fact]
+    public void PreRotateCheckScriptEncoding_ShouldBe()
+    {
+        var ruText = "Провера кириллицы";
+        var log = Runner.NewLog("log-a.log").Create();
+        var markerPre = Runner.NewFile("marker-pre.txt");
+
+        Runner
+            .WithLog(log, l => l
+                .ShouldBe(Ext(".1")))
+            .WithFile(markerPre, l => l
+                .ShouldBe()
+                .ShouldContain(ruText))
+            .WithConfig(c => c
+                .WithSection(XPattern.AllLogs, s => s
+                    .With(Op.Rotate, 2)
+                    .WithScript(Op.PreRotate, $"echo {ruText}, for %1 >> {markerPre}"))
+                .Create())
+            .RunAndCheck();
+    }
 }

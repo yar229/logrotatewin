@@ -531,6 +531,7 @@ to.CreateMode = from.CreateMode;
             to.OlddirUid = from.OlddirUid;
             to.OlddirGid = from.OlddirGid;
             to.CompressOptions.AddRange(from.CompressOptions);
+            to.UnCompressOptions.AddRange(from.UnCompressOptions);
             to.DateFormat = from.DateFormat;
             return to;
         }
@@ -579,8 +580,13 @@ to.CreateMode = from.CreateMode;
             target.OlddirMode = copy.OlddirMode;
             target.OlddirUid = copy.OlddirUid;
             target.OlddirGid = copy.OlddirGid;
+
             target.CompressOptions.Clear();
             target.CompressOptions.AddRange(copy.CompressOptions);
+
+            target.UnCompressOptions.Clear();
+            target.UnCompressOptions.AddRange(copy.UnCompressOptions);
+
             target.DateFormat = copy.DateFormat;
         }
 
@@ -1841,17 +1847,10 @@ long tmpMode = Sentinel.NO_MODE;
 
                                     string dirName;
 
-                                    //if (newlog.OldDir[0] != '/' && newlog.OldDir[0] != '\\')
                                     var fullPath = Path.GetFullPath(newlog.OldDir);
-                                    if (newlog.OldDir != fullPath)
-                                    {
-                                        //dirName = dirPath + "\\" + newlog.OldDir;
-                                        dirName = Path.Combine(fullPath, newlog.OldDir);
-                                    }
-                                    else
-                                    {
-                                        dirName = newlog.OldDir;
-                                    }
+                                    dirName = newlog.OldDir != fullPath
+                                        ? Path.Combine(dirPath, newlog.OldDir)
+                                        : newlog.OldDir;
 
                                     var sbOlddir = FileStat.Stat(dirName);
                                     if (sbOlddir == null)

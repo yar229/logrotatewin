@@ -992,11 +992,17 @@ namespace LogRotate
                         using var proc = Process.Start(psi)!;
                         var stderrTask = proc.StandardError.ReadToEndAsync();
 
-                        var stdoutTask = TaskHelper.CopyAsync(inFile, proc.StandardInput.BaseStream);
-                        stdoutTask.GetAwaiter().GetResult();
-                        proc.StandardInput.Close();
+                        // The compressor blocks when its stdout pipe is full, so
+                        // stdin and stdout must be fed and drained concurrently;
+                        // a write-then-read sequence deadlocks on inputs larger
+                        // than the pipe buffer. stdin is closed only after the
+                        // write finishes to signal EOF to the compressor.
+                        var stdinTask = TaskHelper.CopyAsync(inFile, proc.StandardInput.BaseStream);
+                        var stdoutTask = proc.StandardOutput.BaseStream.CopyToAsync(outFile);
 
-                        proc.StandardOutput.BaseStream.CopyTo(outFile);
+                        stdinTask.GetAwaiter().GetResult();
+                        proc.StandardInput.Close();
+                        stdoutTask.GetAwaiter().GetResult();
 
                         proc.WaitForExit();
 
@@ -1410,9 +1416,9 @@ namespace LogRotate
             state.LastRotated = now;
 
             rotNames.DirName = log.OldDir != null
-                ? Path.GetFullPath(log.OldDir) != log.OldDir //(log.OldDir[0] == '/' || log.OldDir[0] == '\\'
-                    ? log.OldDir
-                    : Path.Combine(DirName(log.Files[logNum]), log.OldDir) //: string.Format(CultureInfo.InvariantCulture, "{0}/{1}", DirName(log.Files[logNum]), log.OldDir))
+                ? Path.GetFullPath(log.OldDir) != log.OldDir
+                    ? Path.Combine(DirName(log.Files[logNum]), log.OldDir)
+                    : log.OldDir
                 : DirName(log.Files[logNum]);
 
             rotNames.BaseName = BaseName(log.Files[logNum]);
