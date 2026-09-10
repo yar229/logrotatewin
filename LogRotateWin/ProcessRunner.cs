@@ -217,7 +217,7 @@ namespace LogRotate
         public static int RunScript(string script, string? scriptDirectory = null,
                                     params (string EnvVar, string Value)[] additionalParams)
         {
-            return RunScript(script, scriptDirectory, null, additionalParams);
+            return RunScript(script, scriptDirectory, null, IntPtr.Zero, additionalParams);
         }
 
         /// <summary>
@@ -225,11 +225,14 @@ namespace LogRotate
         /// account is supplied, cmd.exe is started as that user via
         /// CreateProcessWithLogonW (LOGON_WITH_PROFILE) so the script truly
         /// runs under the 'su' account; otherwise it runs under the current
-        /// account.
+        /// account. <paramref name="runAsToken"/> is the logon token for
+        /// <paramref name="runAs"/> opened by Impersonation.Run (reused to
+        /// build the child's environment block instead of logging on twice);
+        /// IntPtr.Zero when no impersonation applies.
         /// </summary>
         [SupportedOSPlatform("windows")]
         public static int RunScript(string script, string? scriptDirectory,
-                                    Impersonation.Account? runAs,
+                                    Impersonation.Account? runAs, IntPtr runAsToken,
                                     params (string EnvVar, string Value)[] additionalParams)
         {
             string? tempScriptFilepath = GetOrCreateScriptFile(script, scriptDirectory);
@@ -259,7 +262,7 @@ namespace LogRotate
             if (runAs == null)
                 return RunScriptAsCurrentUser(cmd, cmdargs, additionalParams);
 
-            return RunScriptAsUser(runAs.Value, scriptDirectory, cmd, cmdargs, additionalParams);
+            return RunScriptAsUser(runAs.Value, scriptDirectory, cmd, cmdargs, runAsToken, additionalParams);
         }
 
         /// <summary>
@@ -343,7 +346,7 @@ namespace LogRotate
 
         [SupportedOSPlatform("windows")]
         private static int RunScriptAsUser(Impersonation.Account account, string? scriptDirectory,
-                                           string cmd, string cmdargs,
+                                           string cmd, string cmdargs, IntPtr runAsToken,
                                            (string EnvVar, string Value)[] additionalParams)
         {
             string dir = scriptDirectory ?? Path.GetTempPath();
@@ -357,7 +360,7 @@ namespace LogRotate
                 cmdRedirect.Append("\"");
             }
 
-            IntPtr envBlock = BuildEnvironmentBlock(account, additionalParams);
+            IntPtr envBlock = BuildEnvironmentBlock(account, runAsToken, additionalParams);
             if (envBlock == IntPtr.Zero)
                 return 1;
 
@@ -533,20 +536,30 @@ namespace LogRotate
         /// block of the account itself (CreateEnvironmentBlock on a LOGON32_
         /// LOGON_BATCH token) merged with the additional env vars (LOG,
         /// LOG_ROTATED, ...). Returns an unmanaged buffer to be freed with
-        /// Marshal.FreeHGlobal, or IntPtr.Zero on failure.
+        /// Marshal.FreeHGlobal, or IntPtr.Zero on failure. When
+        /// <paramref name="runAsToken"/> is not IntPtr.Zero it is reused (the
+        /// token was already opened by Impersonation.Run and stays valid for
+        /// the duration of the call); otherwise the account is logged on here.
         /// </summary>
         private static IntPtr BuildEnvironmentBlock(Impersonation.Account account,
+                                                    IntPtr runAsToken,
                                                     (string EnvVar, string Value)[] additionalParams)
         {
-            if (!LogonUser(account.User,
-                    string.IsNullOrEmpty(account.Domain) ? "." : account.Domain,
-                    account.Password, LOGON32_LOGON_BATCH, 0, out IntPtr token))
+            bool ownsToken = false;
+            IntPtr token = runAsToken;
+            if (token == IntPtr.Zero)
             {
-                int error = Marshal.GetLastWin32Error();
-                Log.Message(MESS.ERROR,
-                    "su impersonation: cannot log on {0}\\{1} for env (win32 error {2})\n",
-                    account.Domain, account.User, error);
-                return IntPtr.Zero;
+                if (!LogonUser(account.User,
+                        string.IsNullOrEmpty(account.Domain) ? "." : account.Domain,
+                        account.Password, LOGON32_LOGON_BATCH, 0, out token))
+                {
+                    int error = Marshal.GetLastWin32Error();
+                    Log.Message(MESS.ERROR,
+                        "su impersonation: cannot log on {0}\\{1} for env (win32 error {2})\n",
+                        account.Domain, account.User, error);
+                    return IntPtr.Zero;
+                }
+                ownsToken = true;
             }
 
             IntPtr baseBlock = IntPtr.Zero;
@@ -604,7 +617,8 @@ namespace LogRotate
             {
                 if (baseBlock != IntPtr.Zero)
                     DestroyEnvironmentBlock(baseBlock);
-                CloseHandle(token);
+                if (ownsToken)
+                    CloseHandle(token);
             }
         }
 

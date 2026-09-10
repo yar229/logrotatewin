@@ -124,23 +124,26 @@ namespace LogRotate
         /// <summary>
         /// Runs the given action, passing the directory where temp scripts
         /// must be created and (when 'su'+'supasswd' point at another account)
-        /// the credentials scripts are to run under. Child processes must be
-        /// spawned with those credentials by the caller: a plain
+        /// the credentials scripts are to run under, plus the (already opened,
+        /// valid for the duration of the action) logon token used to build the
+        /// child's environment block. Child processes must be spawned with
+        /// those credentials by the caller: a plain
         /// WindowsIdentity.RunImpersonated does NOT propagate to child
         /// processes, so scripts would keep running under the current account.
+        /// The token is IntPtr.Zero when no impersonation takes place.
         /// </summary>
-        public static int Run(LogInfo log, Func<string, Account?, int> action)
+        public static int Run(LogInfo log, Func<string, Account?, IntPtr, int> action)
         {
             if (!WouldImpersonate(log))
             {
-                return action(Path.GetTempPath(), null);
+                return action(Path.GetTempPath(), null, IntPtr.Zero);
             }
 
             if (!TrySplitAccount(log.SuOwnerSid!, out string domain, out string user))
             {
                 Log.Message(MESS.WARN, "su impersonation: cannot derive an account from SID {0}; "
                     + "scripts will run under the current account\n", log.SuOwnerSid);
-                return action(Path.GetTempPath(), null);
+                return action(Path.GetTempPath(), null, IntPtr.Zero);
             }
 
             /* prepare the scripts directory up-front (created by the current,
@@ -148,15 +151,19 @@ namespace LogRotate
              * traverse/read/write) before any impersonation happens */
             string? scriptDir = ScriptsDirectory(log);
 
+            /* the single LogonUser for this run: the token is reused to build
+             * the child's environment block (CreateEnvironmentBlock), so the
+             * impersonated script needs only one logon, not two */
             using (var token = Logon(log.SuOwnerSid!, log.SuPassword!))
             {
                 if (token == null)
                 {
-                    return action(Path.GetTempPath(), null);
+                    return action(Path.GetTempPath(), null, IntPtr.Zero);
                 }
 
                 return action(scriptDir ?? Path.GetTempPath(),
-                    new Account(user, domain, log.SuPassword!));
+                    new Account(user, domain, log.SuPassword!),
+                    token.DangerousGetHandle());
             }
         }
 
