@@ -2373,11 +2373,24 @@ hasErrors = CopyTruncate(log.Files[logNum], rotNames.FinalName!,
 
             Log.Message(MESS.DEBUG, "\nHandling {0} logs\n", logs.Count);
 
-            foreach (var log in logs)
-                rc |= RotateLogSet(log, force);
-
-            if (!Debug)
-                rc |= WriteState(StateFile);
+            try
+            {
+                foreach (var log in logs)
+                    rc |= RotateLogSet(log, force);
+            }
+            catch (Exception ex)
+            {
+                // Keep the state file in sync even when one log set throws
+                // (e.g. NullReferenceException, OutOfMemoryException), so the
+                // failed logs are not re-rotated on the next run.
+                Log.Message(MESS.ERROR, "logrotate: error during rotation: {0}\n", ex.Message);
+                rc = 1;
+            }
+            finally
+            {
+                if (!Debug)
+                    rc |= WriteState(StateFile);
+            }
 
             return rc != 0 ? 1 : 0;
         }
