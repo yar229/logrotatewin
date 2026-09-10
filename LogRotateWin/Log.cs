@@ -67,7 +67,11 @@ namespace LogRotate
 
             if (level == MESS.FATAL)
             {
-                Environment.Exit(1);
+                // Never terminate the process here: Environment.Exit would skip
+                // all finally blocks (script cache cleanup, finally in Main,
+                // state-file lock release). Throw instead so the caller unwinds
+                // cleanly and Program.Main reports the fatal error.
+                throw new InvalidOperationException(string.Format(format, args).TrimEnd());
             }
         }
 
