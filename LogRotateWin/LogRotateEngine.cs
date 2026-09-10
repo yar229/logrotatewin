@@ -435,7 +435,8 @@ namespace LogRotate
                     if (buf.Length == 0)
                     {
                         Log.Message(MESS.ERROR, "line {0} not parsable in state file {1}\n", line, stateFilename);
-                        return 1;
+                        rc = 1;
+                        continue;
                     }
                     if (buf.Length == 1)
                         continue;
@@ -444,7 +445,8 @@ namespace LogRotate
                     if (args == null || args.Count != 2)
                     {
                         Log.Message(MESS.ERROR, "bad line {0} in state file {1}\n", line, stateFilename);
-                        return 1;
+                        rc = 1;
+                        continue;
                     }
 
                     var parts = args[1].Split(new[] { '-', ':' });
@@ -454,7 +456,8 @@ namespace LogRotate
                         !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int day))
                     {
                         Log.Message(MESS.ERROR, "bad line {0} in state file {1}\n", line, stateFilename);
-                        return 1;
+                        rc = 1;
+                        continue;
                     }
                     int hour = 0, minute = 0, second = 0;
                     if (parts.Length > 3) int.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out hour);
@@ -466,42 +469,51 @@ namespace LogRotate
                     {
                         Log.Message(MESS.ERROR, "bad year {0} for file {1} in state file {2}\n",
                             year, args[0], stateFilename);
-                        return 1;
+                        rc = 1;
+                        continue;
                     }
                     if (month < 1 || month > 12)
                     {
                         Log.Message(MESS.ERROR, "bad month {0} for file {1} in state file {2}\n",
                             month, args[0], stateFilename);
-                        return 1;
+                        rc = 1;
+                        continue;
                     }
                     if (day < 0 || day > 31)
                     {
                         Log.Message(MESS.ERROR, "bad day {0} for file {1} in state file {2}\n",
                             day, args[0], stateFilename);
-                        return 1;
+                        rc = 1;
+                        continue;
                     }
                     if (hour < 0 || hour > 23)
                     {
                         Log.Message(MESS.ERROR, "bad hour {0} for file {1} in state file {2}\n",
                             hour, args[0], stateFilename);
-                        return 1;
+                        rc = 1;
+                        continue;
                     }
                     if (minute < 0 || minute > 59)
                     {
                         Log.Message(MESS.ERROR, "bad minute {0} for file {1} in state file {2}\n",
                             minute, args[0], stateFilename);
-                        return 1;
+                        rc = 1;
+                        continue;
                     }
                     if (second < 0 || second > 59)
                     {
                         Log.Message(MESS.ERROR, "bad second {0} for file {1} in state file {2}\n",
                             second, args[0], stateFilename);
-                        return 1;
+                        rc = 1;
+                        continue;
                     }
 
                     var st = States.FindState2(Unescape(args[0]), States.HashSize);
                     if (st == null)
-                        return 1;
+                    {
+                        rc = 1;
+                        continue;
+                    }
 
                     st.LastRotated = new RotatedTime
                     {
@@ -517,7 +529,7 @@ namespace LogRotate
                     st.LastRotated = FromEpoch(MktimeSeconds(st.LastRotated));
                 }
             }
-            return 0;
+            return rc;
         }
 
         private static void WriteEscapedChar(StringBuilder sb, string fn)
