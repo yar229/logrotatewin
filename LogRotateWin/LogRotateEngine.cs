@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Security.Principal;
 using System.Text;
+using System.Threading;
 using System.Xml.Linq;
 
 namespace LogRotate
@@ -42,6 +43,12 @@ namespace LogRotate
 
         public const long DAY_SECONDS = 86400;
         public const long SECONDS_IN_YEAR = 31556926;
+
+        // Number of reopen attempts for compression after a sharing violation
+        // (the rotated file may still be held by the app that wrote it), and
+        // the pause between attempts.
+        private const int CompressOpenRetries = 5;
+        private const int CompressOpenRetryDelayMs = 250;
 
         // =================================================================
         // time helpers
@@ -922,6 +929,67 @@ namespace LogRotate
         }
 
         /// <summary>
+        /// Opens a rotated log read-only for in-place compression. Windows has
+        /// no POSIX open-handle semantics: after the rotation rename the file
+        /// can still be held by the application that wrote it (with no read
+        /// sharing), so the first open may hit a sharing violation. Retries a
+        /// few times for transient locks (antivirus, short-lived writers) and,
+        /// if the file stays locked, reports the process holding it before
+        /// giving up. Returns null once the error is reported.
+        /// </summary>
+        private static FileStream? OpenForCompression(string path, LogInfo log)
+        {
+            string mode = (log.Flags & LogFlags.Shred) != 0 ? "read-write" : "read-only";
+            int attempt = 0;
+            while (true)
+            {
+                try
+                {
+                    return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                }
+                catch (IOException ex) when (IsSharingViolation(ex))
+                {
+                    if (++attempt >= CompressOpenRetries)
+                    {
+                        Log.Message(MESS.ERROR, "cannot read {0} ({1}) for compression: {2}\n",
+                            path, mode, ex.Message);
+                        ReportLockOwner(path);
+                        return null;
+                    }
+                    Thread.Sleep(CompressOpenRetryDelayMs);
+                }
+                catch (Exception ex)
+                {
+                    Log.Message(MESS.ERROR, "cannot read {0} ({1}) for compression: {2}\n",
+                        path, mode, ex.Message);
+                    return null;
+                }
+            }
+        }
+
+        private static bool IsSharingViolation(IOException ex)
+        {
+            int code = ex.HResult & 0xFFFF;
+            return code == 32 /* ERROR_SHARING_VIOLATION */
+                || code == 33 /* ERROR_LOCK_VIOLATION */;
+        }
+
+        private static void ReportLockOwner(string path)
+        {
+            string? lockers = FileLockInfo.FindLockingProcesses(path);
+            if (lockers != null)
+            {
+                Log.Message(MESS.ERROR, "file {0} is locked by: {1}; close or restart the "
+                    + "application that wrote this log before the next run\n", path, lockers);
+            }
+            else
+            {
+                Log.Message(MESS.ERROR, "cannot identify who locks {0}; use Process Explorer "
+                    + "(Find -> Handle or DLL) to see the owning process\n", path);
+            }
+        }
+
+        /// <summary>
         /// Compress a file using built-in .NET GZipStream
         /// </summary>
         /// <param name="filepath">Source file path</param>
@@ -930,15 +998,13 @@ namespace LogRotate
         {
             string compressedFilepath = AddExtension(filepath, log.CompressExt);
             try
-            { 
+            {
                 int chunkSize = 65536;
-                using (FileStream fs = new FileStream(filepath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (FileStream fs = OpenForCompression(filepath, log))
                 {
                     if (fs == null)
                     {
-                        Log.Message(MESS.ERROR, "unable to open {0} ({1}) for compression: {2}\n",
-                            filepath, (log.Flags & LogFlags.Shred) != 0 ? "read-write" : "read-only",
-                            ErrnoMessage(2));
+                        FileUtil.DeleteFile(compressedFilepath);
                         return 1;
                     }
 
@@ -968,13 +1034,10 @@ namespace LogRotate
 
         private static int CompressWithExternalCommand(string name, LogInfo log, FileStat sb)
         {
-            using (var inFile = OpenStream(name, false))
+            using (var inFile = OpenForCompression(name, log))
             {
                 if (inFile == null)
                 {
-                    Log.Message(MESS.ERROR, "unable to open {0} ({1}) for compression: {2}\n",
-                        name, (log.Flags & LogFlags.Shred) != 0 ? "read-write" : "read-only",
-                        ErrnoMessage(2));
                     return 1;
                 }
 
